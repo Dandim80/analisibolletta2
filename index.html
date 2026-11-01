@@ -513,12 +513,20 @@ function vHome(){
       </table>
     </div>
     <p style="color:var(--muted);font-size:.8rem;margin-top:20px">Consulenza gratuita, per aziende e privati.</p>
-    <div class="card" style="margin-top:14px;text-align:left">
-      <div style="font-weight:700;margin-bottom:8px">Lo strumento ti è utile? Condividilo</div>
-      <div style="display:flex;gap:10px">
-        <button class="btn btn-ghost" style="flex:1" onclick="shareSite()">Condividi su WhatsApp</button>
-        <button class="btn btn-ghost" style="flex:1" onclick="shareSiteEmail()">Condividi via Email</button>
+    <div class="card" style="margin-top:12px;text-align:left">
+      <div style="font-weight:700;margin-bottom:6px">🎁 Passaparola: fino a 500 € di bonus Amazon</div>
+      <p class="sub" style="margin:.1rem 0 10px">Condividi lo strumento con colleghi o amici, poi segnala qui i loro contatti: <b>per ogni segnalato che diventa cliente ricevi 20 € di bonus Amazon</b> — fino a 25 email, quindi fino a 500 € in totale. Aggiungi i contatti: <b>noi inviamo l’invito per te, con te in copia</b>.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="ppNome" style="flex:1 1 130px" placeholder="Il tuo nome" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}">
+        <input id="ppEmail" type="email" style="flex:1 1 170px" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}">
       </div>
+      <div id="ppList" style="margin-top:8px"><input class="ppIn" style="width:100%" placeholder="Email o cellulare amico #1"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi un contatto (fino a 10)</button>
+        <button class="btn btn-primary" onclick="ppInvia()">Invia le segnalazioni all’ufficio</button>
+      </div>
+      <div id="ppMsg" style="margin-top:8px"></div>
+      <p class="note" style="margin-top:6px">I contatti restano riservati: arrivano solo all’ufficio. A ogni amico che firma la chiamiamo per attivare la sua offerta e confermiamo a te il bonus via email.</p>
     </div>
     <a class="reviews" href="${REVIEWS_URL}" target="_blank" rel="noopener">
       <span class="stars">★★★★★</span>
@@ -3652,10 +3660,8 @@ function vConferma(){
       </table>
       <div class="alert info">Riceverai l'invito per il calendario. Se l'orario non andasse bene, lo spostiamo noi: nessun problema.</div>
       <button class="btn btn-primary" style="margin-top:14px" onclick="resetWizard()">Torna alla Home</button>
-      <div style="display:flex;gap:10px;margin-top:14px">
-        <button class="btn btn-ghost" style="flex:1" onclick="shareSite()">Condividi su WhatsApp</button>
-        <button class="btn btn-ghost" style="flex:1" onclick="shareSiteEmail()">Condividi via Email</button>
-      </div>
+      <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="go('home')">🎁 Passaparola: condividi lo strumento e ricevi fino a 500 € di buoni Amazon</button>
+      <p style="color:var(--muted);font-size:.75rem;margin-top:8px;text-align:center">A ogni amico che firma: 20 € di bonus per te (fino a 25 segnalati).</p>
       <p style="color:var(--muted);font-size:.75rem;margin-top:8px;text-align:center">Anche un collega o un amico può provarlo: consulenza gratuita.</p>
     </div>
   </div>`;
@@ -3687,6 +3693,45 @@ function shareRef(){
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
 
+/* ---------- PASSAPAROLA — bonus 20 € Amazon ---------- */
+const PP_MAX = 25;
+function ppAggiungi(){
+  const box = document.getElementById('ppList');
+  if(!box) return;
+  const n = box.querySelectorAll('.ppIn').length;
+  if(n >= PP_MAX){ alert('Massimo 25 contatti per segnalazione'); return; }
+  const riga = document.createElement('div');
+  riga.style.marginTop = '6px';
+  riga.innerHTML = '<input class="ppIn" style="width:100%" placeholder="Email o cellulare amico #' + (n + 1) + '" inputmode="email">';
+  box.appendChild(riga);
+}
+async function ppInvia(){
+  const msg = document.getElementById('ppMsg');
+  if(!msg) return;
+  const contatti = Array.from(document.querySelectorAll('.ppIn')).map(x => (x.value || '').trim()).filter(Boolean);
+  if(!contatti.length){ msg.innerHTML = '<div class="alert error">Aggiungi almeno un contatto da segnalare.</div>'; return; }
+  const nome = ((document.getElementById('ppNome') || {}).value || '').trim();
+  const mia = ((document.getElementById('ppEmail') || {}).value || '').trim();
+  if(!mia || mia.indexOf('@') < 1){ msg.innerHTML = '<div class="alert error">Scrivi la tua email: è dove ricevi il bonus Amazon.</div>'; return; }
+  msg.innerHTML = '<div class="alert info">Invito in partenza a ' + contatti.length + ' contatti, con te in copia…</div>';
+  let inviata = false;
+  try{
+    const qs = new URLSearchParams({ tipo: 'passaparola', nome: nome, mia: mia, contatti: contatti.join('|'), link: (location.href.split('#')[0] || '') }).toString();
+    await fetch(GOOGLE_SCRIPT_URL + '?' + qs, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+    inviata = true;
+  } catch(e2){
+    try{
+      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ oggetto: 'PASSAPAROLA 20€ Amazon — ' + (nome || mia), corpo: 'Inviti passaparola DDM Soluzioni', dest: mia, tipo: 'passaparola', nome: nome, contatti: contatti.join('|'), link: (location.href.split('#')[0] || '') }) });
+      inviata = true;
+    } catch(e3){}
+  }
+  if(inviata){
+    msg.innerHTML = '<div class="alert info">✓ Inviti inviati (' + contatti.length + ' contatti), con te in copia. Controlla: ti arriva la conferma dapprima su spam; il bonus Amazon parte quando un amico diventa cliente.</div>';
+    document.querySelectorAll('.ppIn').forEach(x => { x.value = ''; });
+  } else {
+    msg.innerHTML = '<div class="alert error">Invio non riuscito: controlla la connessione e riprova. Se resta bloccato, apri la console del browser (F12) e cerca eventuali errori rosii.</div>';
+  }
+}
 /* Condivisione del link del sito (Home + conferma call) */
 function shareSite(){
   const link = location.href.split('#')[0];
@@ -4234,7 +4279,8 @@ async function ordGenera(){
       <p class="sub">La pratica è pronta per il portale del fornitore: il JSON scaricato contiene i campi dello schema già mappati (step1/step2/step3 con i nomi esatti del form lungo).</p>
       <div style="display:flex;gap:10px;margin-top:14px">
         ${!inviata ? `<button class="btn btn-ghost" style="flex:1" onclick="apriEmailRiepilogo(window.__ordOggetto, window.__ordTxt)">Invia manualmente via email</button>` : ''}
-        <button class="btn btn-primary" style="flex:1" onclick="resetWizard()">Torna alla Home</button>
+        <button class="btn btn-primary" style="flex:1;white-space:normal" onclick="go('home')">🎁 Passaparola: fino a 500 € di buoni Amazon — condividi lo strumento</button>
+        <button class="btn btn-ghost" style="flex:1" onclick="resetWizard()">Torna alla Home</button>
       </div>
     </div>
   </div>`;
