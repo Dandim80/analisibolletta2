@@ -157,6 +157,9 @@ label.fl{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px}
 .dock button{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.68rem;color:var(--muted);cursor:pointer;padding:6px 10px;border-radius:10px;font-weight:700}
 .dock button .ic{font-size:1.25rem}
 .dock button.on{color:var(--primary);background:var(--primary-100)}
+/* Invita nel dock: messo in evidenza (fino a 500 € per te) */
+.dock button[data-nav="invita"]{color:#8a5a00;background:#ffe9b8;box-shadow:inset 0 0 0 2px #ffd166}
+.dock button[data-nav="invita"] .mini{font-size:.58rem;font-weight:800;color:#a86b00;line-height:1}
 
 table.summary{width:100%;border-collapse:collapse;font-size:.9rem}
 table.summary td{padding:8px 10px;border-top:1px solid #edf1f6}
@@ -185,7 +188,16 @@ details.dettaglio-cte > summary::-webkit-details-marker{display:none}
 .btn-back-top{position:absolute;top:2px;right:0;background:var(--card);border:1.5px solid var(--muted);border-radius:999px;padding:6px 14px;font-size:.8rem;font-weight:700;color:var(--ink, #12203a);cursor:pointer;white-space:nowrap;opacity:.92}
 .btn-back-top:hover{background:var(--bg, #eef2f7)}
 </style>
-</head>
+<style>
+/* offerte: luce a sinistra, gas a destra (desktop) */
+.offers-lg{display:grid;gap:14px;align-items:start}
+@media(min-width:660px){
+  .offers-lg{grid-template-columns:1fr 1fr}
+  .offers-lg .c-luce{grid-column:1}
+  .offers-lg .c-gas{grid-column:2}
+  .offers-lg .c-entrami{grid-column:1/-1}
+}
+</style></head>
 <body>
 
 <div class="topbar"><div class="topbar-inner">
@@ -201,7 +213,7 @@ details.dettaglio-cte > summary::-webkit-details-marker{display:none}
   <button data-nav="wizard" onclick="resetWizard()"><span class="ic">🏠</span>Home</button>
   <button data-nav="offerte" onclick="go('offerte-view')"><span class="ic">🔍</span>Offerte</button>
   <button data-nav="prenota" onclick="go('prenota')"><span class="ic">📅</span>Prenota</button>
-  <button data-nav="invita" onclick="go('invita')"><span class="ic">🎁</span>Invita</button>
+  <button data-nav="invita" onclick="go('invita')"><span class="ic">🎁</span><span>Invita</span><span class="mini">fino a 500 €</span></button>
   <button data-nav="contatti" onclick="go('contatti')"><span class="ic">💬</span>Contatti</button>
 </div>
 <div class="demo-bar" id="demoBar">
@@ -513,21 +525,6 @@ function vHome(){
       </table>
     </div>
     <p style="color:var(--muted);font-size:.8rem;margin-top:20px">Consulenza gratuita, per aziende e privati.</p>
-    <div class="card" style="margin-top:12px;text-align:left">
-      <div style="font-weight:700;margin-bottom:6px">🎁 Passaparola: fino a 500 € di bonus Amazon</div>
-      <p class="sub" style="margin:.1rem 0 10px">Condividi lo strumento con colleghi o amici, poi segnala qui i loro contatti: <b>per ogni segnalato che diventa cliente ricevi 20 € di bonus Amazon</b> — fino a 25 email, quindi fino a 500 € in totale. Aggiungi i contatti: <b>noi inviamo l’invito per te, con te in copia</b>.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="ppNome" style="flex:1 1 130px" placeholder="Il tuo nome" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}">
-        <input id="ppEmail" type="email" style="flex:1 1 170px" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}">
-      </div>
-      <div id="ppList" style="margin-top:8px"><input class="ppIn" style="width:100%" placeholder="Email o cellulare amico #1"></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi un contatto (fino a 10)</button>
-        <button class="btn btn-primary" onclick="ppInvia()">Invia le segnalazioni all’ufficio</button>
-      </div>
-      <div id="ppMsg" style="margin-top:8px"></div>
-      <p class="note" style="margin-top:6px">I contatti restano riservati: arrivano solo all’ufficio. A ogni amico che firma la chiamiamo per attivare la sua offerta e confermiamo a te il bonus via email.</p>
-    </div>
     <a class="reviews" href="${REVIEWS_URL}" target="_blank" rel="noopener">
       <span class="stars">★★★★★</span>
       <span><strong>DDM Soluzioni</strong> — leggi le recensioni dei nostri clienti su Google</span>
@@ -710,17 +707,19 @@ function stimeDi(d, gestoriEsclusi, cliente){
         if(!(pieno > 0)) continue;
         const sc = o.netto_kwh || pieno, dom = o.netto_dom_kwh || sc;
         if(!(sc > 0)) continue;
-        if(!best || sc < best.sc) best = { sc, dom, o };
+        const np2 = o.vincolo && o.vincolo.penale; /* PENALI_IN_FONDO_2: senza penale vince sempre */
+if(!best || (!np2 && best.np) || (np2 === !!best.np && sc < best.sc)) best = { sc, dom, o, np: np2 };
       }
       /* dispacciamento: quello REALE se la bolletta lo dichiara (es. Magis 0,011551),
          altrimenti il forizzato 0,015 €/kWh */
       const dispL = (d.dispacciamento_luce > 0 && d.dispacciamento_luce < 0.05) ? d.dispacciamento_luce : 0.015;
       if(best && (d.attuale_kwh - dispL) > best.sc){
         const baseL = Math.max(0, d.attuale_kwh - dispL);   // dispacciamento tolto dalla base
-        lmin = Math.max(0, Math.round(d.kwh_anno * (baseL - best.sc)));
-        lmax = Math.max(lmin, Math.round(d.kwh_anno * (baseL - best.dom)));
+        /* RID bancario già incluso nel calcolo: min e max usano il prezzo con RID */
+        lmin = Math.max(0, Math.round(d.kwh_anno * (baseL - best.dom)));
+        lmax = lmin;
         det.luce = { consumo_anno: d.kwh_anno, prezzo_bolletta: d.attuale_kwh, offerta_senza_rid: best.sc, offerta_con_rid: best.dom, iva: ivaL,
-          cte: (best.o.nome_cte || '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, ''), prezzo_kwh: best.o.prezzo_kwh, sconto_pct: (best.o.sconto_luce || 0), dom_pct: (best.o.dom_luce || 0), quota_fissa: (qfMese(best.o.quota_fisse_luce, 'POD', 0) || 0) };
+          cte: (best.o.nome_cte || '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, ''), prezzo_kwh: best.o.prezzo_kwh, sconto_pct: (best.o.sconto_luce || 0), dom_pct: (best.o.dom_luce || 0), valida_fino: best.o.valida_fino || '', quota_fissa: (qfMese(best.o.quota_fisse_luce, 'POD', 0) || 0) };
       }
     }
     if(d.attuale_smc && d.smc_anno){
@@ -730,13 +729,15 @@ function stimeDi(d, gestoriEsclusi, cliente){
         if(!(pieno > 0)) continue;
         const sc = o.netto_smc || pieno, dom = o.netto_dom_smc || sc;
         if(!(sc > 0)) continue;
-        if(!best || sc < best.sc) best = { sc, dom, o };
+        const np2 = o.vincolo && o.vincolo.penale; /* PENALI_IN_FONDO_2: senza penale vince sempre */
+if(!best || (!np2 && best.np) || (np2 === !!best.np && sc < best.sc)) best = { sc, dom, o, np: np2 };
       }
       if(best && d.attuale_smc > best.sc){
-        gmin = Math.max(0, Math.round(d.smc_anno * (d.attuale_smc - best.sc)));
-        gmax = Math.max(gmin, Math.round(d.smc_anno * (d.attuale_smc - best.dom)));
+        /* RID bancario già incluso nel calcolo: min e max usano il prezzo con RID */
+        gmin = Math.max(0, Math.round(d.smc_anno * (d.attuale_smc - best.dom)));
+        gmax = gmin;
         det.gas = { consumo_anno: d.smc_anno, prezzo_bolletta: d.attuale_smc, offerta_senza_rid: best.sc, offerta_con_rid: best.dom, iva: ivaG,
-          cte: (best.o.nome_cte || '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, ''), prezzo_smc: best.o.prezzo_smc, sconto_pct: (best.o.sconto_gas || 0), dom_pct: (best.o.dom_gas || 0), quota_fissa: (qfMese(best.o.quota_fisse_gas, 'PDR', 0) || 0) };
+          cte: (best.o.nome_cte || '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, ''), prezzo_smc: best.o.prezzo_smc, sconto_pct: (best.o.sconto_gas || 0), dom_pct: (best.o.dom_gas || 0), valida_fino: best.o.valida_fino || '', quota_fissa: (qfMese(best.o.quota_fisse_gas, 'PDR', 0) || 0) };
       }
     }
     if(lmin || gmin){
@@ -759,6 +760,7 @@ function stimeDi(d, gestoriEsclusi, cliente){
       out.push({
         gestore: gs,
         vincolo: vin,
+        valida_fino: ((det.luce && det.luce.valida_fino) && (det.gas && det.gas.valida_fino) ? (det.luce.valida_fino < det.gas.valida_fino ? det.luce.valida_fino : det.gas.valida_fino) : ((det.luce && det.luce.valida_fino) || (det.gas && det.gas.valida_fino) || '')), /* SCADENZE_V7 */
         luce_min: lmin, luce_max: lmax, gas_min: gmin, gas_max: gmax,
         luce_min_imp: Math.round(lmin * ivaL), luce_max_imp: Math.round(lmax * ivaL),
         gas_min_imp: Math.round(gmin * ivaG), gas_max_imp: Math.round(gmax * ivaG),
@@ -769,7 +771,7 @@ function stimeDi(d, gestoriEsclusi, cliente){
       });
     }
   }
-  out.sort((a, b) => (b.totale_max - a.totale_max) || (b.totale_min - a.totale_min));
+  out.sort((a, b) => (((a.vincolo && a.vincolo.penale) ? 1 : 0) - ((b.vincolo && b.vincolo.penale) ? 1 : 0)) || (b.totale_max - a.totale_max) || (b.totale_min - a.totale_min)); /* PENALI_IN_FONDO_2 */
   return out;
 }
 
@@ -1331,6 +1333,17 @@ function parseBollettaText(t){
   // ATTUALE per il confronto = la "di cui spesa per la vendita" (materia energia senza la
   // rete, uguale per tutti). Il dispacciamento incluso lì viene tolto nel calcolo del
   // risparmio con un valore forizzato di 0,015 €/kWh. Fallback: media importo/quantità.
+  /* fatture aziendali variabili PUN (Magis, Eni…): la riga "di cui spesa per la vendita
+     di energia elettrica 0,286923 €/kWh" è il PREZZO COMPLETO dell'energia (vendita +
+     perdite + dispacciamento + capacità). Le righe per fascia sono solo componenti:
+     senza questo soccorso vendK resta il prezzo di una componente (0,02…) e attuale_kwh
+     viene 0 → le offerte non mostrano risparmio. Range di sicurezza 0,08–0,6 €/kWh. */
+  {
+    const midK = flat.match(/spesa\s+per\s+la\s+vendita[^€\n]{0,90}?([\d.,]{1,10})\s*\u20ac\s*\/\s*kwh/i);
+    if(midK){ const mk = numIt(midK[1]); if(mk >= 0.08 && mk <= 0.6) vendK = mk; }
+    const midS = flat.match(/spesa\s+per\s+la\s+vendita[^€\n]{0,90}?([\d.,]{1,10})\s*\u20ac\s*\/\s*smc/i);
+    if(midS){ const ms2 = numIt(midS[1]); if(ms2 >= 0.25 && ms2 <= 2.5) vendS = ms2; }
+  }
   let totPrezzoK = 0, totPrezzoS = 0;
   if(vendK) totPrezzoK = vendK;
   if(vendS) totPrezzoS = vendS;
@@ -2775,7 +2788,15 @@ function materiaDaNome(nome){
 }
 function mappaRegistro(reg){
   const out = [];
-  const bad = x => !x || x.stato === 'scaduta' || x.stato === 'non_leggibile';
+  const bad = x => !x || x.stato === 'scaduta' || x.stato === 'non_leggibile'; /* GESTREALE */  /* GESTREALE: operatore reale quando il registro non l'ha riconosciuto (bucket "Non classificata"):
+     dal nome della CTE ("EST ENERGY - CTE_..." → "EST ENERGY"; "SINERGY LUCE E GAS - ..." → "SINERGY") */
+  const gestReale = (g, cte) => {
+    if(!/non\s*classif/i.test(String(g || ''))) return g;
+    const pref = String(cte || '').split(' - ')[0].replace(/\.pdf$/i, '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, '').trim();
+    if(/sinergy/i.test(pref)) return 'SINERGY'; /* 6d */
+    if(/est energy res/i.test(pref)) return 'EST ENERGY';
+    return pref || g;
+  };
   // il pezzo deve avere un prezzo pieno o uno spread (le variabili hanno il prezzo dinamico)
   // e NON essere scaduto: il controllo scadenza vale ANCHE dopo il congelamento del registry
   // (una CTE valida fino a ieri non deve più proporsi oggi)
@@ -2790,7 +2811,7 @@ function mappaRegistro(reg){
     const t = x.tariffe || {};
     const l = materia === 'luce', gs = materia === 'gas';
     return {
-      gestore: g,
+      gestore: gestReale(g, x.cte),
       nome_cte: String(x.cte || '').replace(/\.pdf$/i, '').replace(/-CTE-\d{4}-\d{2}-\d{2}$/i, ''),
       materia_solo: materia,
       cluster: clus(x),
@@ -2829,13 +2850,16 @@ function mappaRegistro(reg){
   for(const [g, v] of Object.entries(reg.gestori || {})){
     const mainL = v.luce, mainG = v.gas;
     const okL = usa(mainL), okG = usa(mainG);
-    if(okL && okG){
+    const glR = gestReale(g, (mainL || {}).cte), ggR = gestReale(g, (mainG || {}).cte); /* 6d */
+    if(okL && okG && glR !== ggR){
+      out.push(mappa(glR, mainL, 'luce'), mappa(ggR, mainG, 'gas')); /* gestori diversi nel bucket: due schede separate */
+    } else if(okL && okG){
       const tl = mainL.tariffe || {}, tg = mainG.tariffe || {};
       const c1 = clus(mainL), c2 = clus(mainG);
       const dd = (tl.sconto && tl.sconto.domiciliazione) || null;
       const dg = (tg.sconto && tg.sconto.domiciliazione) || null;
       out.push({
-        gestore: g,
+        gestore: gestReale(g, (mainL || mainG).cte),
         nome_cte: '',
         combinata: true,
         cluster: (c1 === 'business' || c2 === 'business') ? 'business' : (c1 || c2),
@@ -2869,8 +2893,8 @@ function mappaRegistro(reg){
         valida_fino: mainL.valida_fino || mainG.valida_fino || null,
         stato: mainL.stato || mainG.stato || 'da_verificare'
       });
-    } else if(okL) out.push(mappa(g, mainL, 'luce'));
-    else if(okG) out.push(mappa(g, mainG, 'gas'));
+    } else if(okL) out.push(mappa(glR, mainL, 'luce'));
+    else if(okG) out.push(mappa(ggR, mainG, 'gas'));
     // le voci alternative censite: ogni CTE confermata è un'opzione sua
     for(const a of (v.altre || [])){
       if(!usa(a)) continue;
@@ -2983,11 +3007,13 @@ function offerteTrasparenti(){
   const luce = !state.utenza || state.utenza === 'luce' || state.utenza === 'entrambi';
   const gas = !state.utenza || state.utenza === 'gas' || state.utenza === 'entrambi';
   if(!TARIFFE || !TARIFFE.length) return [];
-  /* il gestore attuale del cliente non è un'offerta: escluso con normalizzazione
-     (bolletta "Plenitude" → gestore "Eni") e su TUTTI i gestori rilevati (luce + gas) */
+  /* il gestore attuale NON sparisce: si toglie solo la proposta-standard variabile dello 
+   stesso gestore (coincide con l'offerta che il cliente già ha). Le CTE alternative 
+   (per es. FIXA TIME SMART) restano: sono il confronto che fa risparmiare davvero. 
+   Normalizzazione bolletta → gestore ("Plenitude" → "Eni") con normGest. */
   const attuali = [...(state.fornitori || []), state.fornitore].map(normGest).filter(Boolean);
   return TARIFFE
-    .filter(t => !attuali.includes(normGest(t.gestore)))          // il gestore attuale del cliente non è un'offerta
+    .filter(t => !(attuali.includes(normGest(t.gestore)) && t.combinata))
     .map(t => {
       const qfL = luce ? qfMese(t.quota_fisse_luce, 'POD', null) : null;
       const qfG = gas ? qfMese(t.quota_fisse_gas, 'PDR', null) : null;
@@ -3070,17 +3096,19 @@ function risparmioOfferta(o){
   if(luce && baseL && l.consumo_anno){
     const nettoSR = senzaRid(nettiLuce);
     if(nettoSR < Infinity && baseL > nettoSR){
-      lmin = Math.max(0, Math.round(l.consumo_anno * (baseL - nettoSR)));
+      /* RID bancario già incluso nel calcolo: min e max usano il prezzo con RID */
       const nettoCR = conRid(nettoSR, prezzoNum(o.luceRid));
-      lmax = Math.max(lmin, Math.round(l.consumo_anno * (baseL - nettoCR)));
+      lmin = Math.max(0, Math.round(l.consumo_anno * (baseL - nettoCR)));
+      lmax = lmin;
     }
   }
   if(gas && baseG && g.consumo_anno){
     const nettoSR = senzaRid(nettiGas);
     if(nettoSR < Infinity && baseG > nettoSR){
-      gmin = Math.max(0, Math.round(g.consumo_anno * (baseG - nettoSR)));
+      /* RID bancario già incluso nel calcolo: min e max usano il prezzo con RID */
       const nettoCR = conRid(nettoSR, prezzoNum(o.gasRid));
-      gmax = Math.max(gmin, Math.round(g.consumo_anno * (baseG - nettoCR)));
+      gmin = Math.max(0, Math.round(g.consumo_anno * (baseG - nettoCR)));
+      gmax = gmin;
     }
   }
   // quota fissa: differenza tra il canone attuale in bolletta e quello del CTE
@@ -3308,11 +3336,13 @@ function vStima(){
       </div>
       ${(s.dettagli && (s.dettagli.luce || s.dettagli.gas)) ? `<div style="font-size:.8rem;color:var(--muted);margin-top:6px;line-height:1.55">Dati dalla CTE:${s.dettagli.luce && s.dettagli.luce.cte ? ` <b>luce</b> «${s.dettagli.luce.cte}» — energia ${eurP(s.dettagli.luce.prezzo_kwh || 0)}/kWh${s.dettagli.luce.sconto_pct ? ' (sconto ' + s.dettagli.luce.sconto_pct + '%)' : ''}` : ''}${s.dettagli.gas && s.dettagli.gas.cte ? (s.dettagli.luce && s.dettagli.luce.cte ? ' · ' : ' ') + `<b>gas</b> «${s.dettagli.gas.cte}» — energia ${eurP(s.dettagli.gas.prezzo_smc || 0)}/Smc${s.dettagli.gas.sconto_pct ? ' (sconto ' + s.dettagli.gas.sconto_pct + '%)' : ''}` : ''}${s.dettagli.luce && s.dettagli.luce.quota_fissa ? ' · quota fissa luce ' + eur(s.dettagli.luce.quota_fissa) + '/mese' : ''}${s.dettagli.gas && s.dettagli.gas.quota_fissa ? ' · quota fissa gas ' + eur(s.dettagli.gas.quota_fissa) + '/mese' : ''}</div>` : ''}
       <div style="font-size:.8rem;color:var(--muted);margin-top:10px">Prezzo dell'offerta = vendita dell'energia. Dalla spesa di vendita della tua bolletta luce si toglie il dispacciamento forizzato (0,015 €/kWh); per il gas la spesa di vendita si usa interamente. Il confronto è mele con mele.</div>
+    ${s.valida_fino ? `<div class="sub" style="margin-top:8px;font-size:.78rem">⏳ Stima valida fino a <b>${dF(s.valida_fino.slice(0, 10))}</b> — la compagnia può modificarla o ritirarla in anticipo senza preavviso (fine promozione o esaurimento dei volumi): meglio completare la richiesta ora.</div>` : ''}
     </div>`).join('')}
 
     ${!a.stime || !a.stime.length ? '<div class="alert info">Non ho trovato offerte confrontabili con i tuoi dati: il consulente farà la stima in call.</div>' : ''}
 
     ${a.gestore_attuale ? `<div class="alert info">Gestore attuale individuato: <b>${a.gestore_attuale}</b>. Le stime mostrano solo offerte alternative.</div>` : ''}
+    ${a.stime && a.stime.length ? '<div class="alert info">⏳ Le offerte sono promozioni a tempo: la compagnia può modificarle o ritirarle in anticipo, senza preavviso (fine promozione o esaurimento dei volumi). <b>Se ti interessa completa ora</b>, o fatti inviare il riepilogo via email.</div>' : ''}
     ${(l.stima_medi || g.stima_medi) ? `<div class="alert info">Bolletta ${l.stima_medi ? 'luce' : ''}${l.stima_medi && g.stima_medi ? ' e ' : ''}${g.stima_medi ? 'gas' : ''} non leggibile (scansione?): per quella materia la stima usa i dati medi — ${g.stima_medi ? '1.400 Smc/anno e prezzo variabile di mercato (PSV del mese + spread 0,15 €/Smc)' : '2.700 kWh/anno e prezzo variabile di mercato (PUN del mese + spread 0,03 €/kWh)'}. Il consulente la rifà sui dati veri in call.</div>` : ''}
     ${a.senza_bolletta ? `<div class="alert info">Come nasce questa stima: senza bolletta uso ${ind === 'azienda' ? 'i consumi che hai inserito' : 'i consumi medi'} e il prezzo medio praticabile di mercato dell'energia come punto di partenza. In call il consulente la conferma sui dati reali.</div>` : ''}
     ${ind === 'azienda' ? `<div class="alert info">Per le aziende la consulenza personalizzata è disponibile <b>telefonica, in videocall o in sede</b> (provincia di Vicenza e Padova): la tipologia la scegli alla prenotazione.</div>` : ''}
@@ -3323,6 +3353,8 @@ function vStima(){
     <div style="display:grid;gap:10px;margin-top:18px">
       <button class="btn btn-primary" onclick="go('offerte-view')">Vedi tutte le offerte in essere</button>
       <button class="btn btn-ghost" onclick="state.offertaScelta=null; go('prenota')">Prenota la call di 15 minuti</button>
+      <button class="btn btn-ghost" onclick="inviaRiepilogoEmail()">📧 Inviami queste stime via Email</button>
+      <button class="btn btn-primary" style="margin-top:10px;white-space:normal">🎁 Invita un amico: fino a 500 € per te</button>
       ${btnIndietro()}
     </div>
   </div>`;
@@ -3331,7 +3363,8 @@ function vStima(){
 function vOfferte(){
   showDock(true); markNav('offerte');
   const pool = offerteCompatibili();
-  const ordered = [...pool.list].sort((a, b) => punteggioOfferta(a) - punteggioOfferta(b));
+  const penOrd = (o) => ((o.vincolo || {}).penale || /penale/i.test(o.nomeCte || '')); /* PENALI_IN_BASSO */
+const ordered = [...pool.list].sort((a, b) => (penOrd(a) - penOrd(b)) || (punteggioOfferta(a) - punteggioOfferta(b)));
   const list = state.mostraTutte ? ordered : ordered.slice(0, 5);
   const nGestori = (TARIFFE ? TARIFFE.length : ordered.length);
   const al = (state.analisi || {}).luce || {}, ag = (state.analisi || {}).gas || {};
@@ -3340,6 +3373,7 @@ function vOfferte(){
     ? 'In cima la CTE col <b>risparmio maggiore stimato sulla tua bolletta</b> (' + attuali + '). Stima sulla parte energia, IVA inclusa: la conferma il consulente in call.'
     : 'Condizioni correnti dei gestori, in trasparenza. Ti mostro le ' + Math.min(5, list.length) + ' più convenienti: se vuoi le vedi tutte. Nessuna stima personalizzata: è il lavoro del consulente, in call.';
   const isInt = state.utenza === 'internet';
+  const tuoiGestori = [...(state.fornitori || []), state.fornitore].map(normGest).filter(Boolean);
   return `
   ${stepsBar(3)}
   <div class="anim">
@@ -3350,27 +3384,29 @@ function vOfferte(){
 
     ${list.length === 0 ? `<div class="alert info">Le offerte si stanno aggiornando. Prenota comunque la call: il consulente ti leggerà le condizioni del giorno.</div>` : ''}
 
-    ${list.map((o,ix)=>{
+    <div class="offers-lg">
+${list.map((o,ix)=>{
+      const fP = list.findIndex(ox => ox.vincolo && ox.vincolo.penale);
+      const hz = (ix === 0 && fP > 0) ? '<div class="div-lg" style="grid-column:1/-1;font-weight:800;font-size:1.05rem;margin:2px 0 2px">✓ Le CTE con il maggiore risparmio <span style="color:var(--muted);font-weight:600;font-size:.8rem">senza penali di uscita</span></div>' : '';
+      const hc = (ix === fP) ? '<div class="div-lg" style="grid-column:1/-1;font-weight:800;font-size:1.05rem;margin:10px 0 2px">⚠ Le CTE con il maggiore risparmio <span style="color:var(--muted);font-weight:600;font-size:.8rem">ma con una penale se non viene rispettata la scadenza</span></div>' : '';
       const r = risparmioOfferta(o);
       const rStr = rispStr(r.tot_min_imp, r.tot_max_imp);
-      return `
-    <div class="offer">
+      return hz + hc + `
+    <div class="offer c-${(o.luce && o.gas) ? 'entrami' : (o.gas ? 'gas' : 'luce')}">
       <div class="head">
         <div class="name">${o.gestore}</div>
         ${o.nomeCte ? `<div style="font-size:.78rem;color:var(--muted)">${o.nomeCte}</div>` : ''}
-        ${o.validaFino ? `<span class="badge">CTE in validità</span>` : ''}
+        ${tuoiGestori.includes(normGest(o.gestore)) ? '<span class="badge" style="background:#fff3d6;color:#7a4d00">il tuo gestore</span>' : ''}
         ${o.vincolo && (o.vincolo.mesi || o.vincolo.fino || o.vincolo.penale) ? badgeVincolo(o.vincolo) : ''}
         ${ix === 0 && r.tot_max_imp > 0 ? '<span class="badge" style="background:var(--success);color:var(--primary-ink)">più risparmio sulla tua bolletta</span>' : ''}
       </div>
-      ${rStr ? `<div style="margin:12px 0 2px;background:var(--primary-100);border-radius:10px;padding:12px 14px;font-size:.95rem;cursor:pointer" onclick="pickOfferta('${o.gestore.replace(/'/g,"\\'")}', '${(o.nomeCte || '').replace(/'/g,"\\'")}')">⚡ Risparmio stimato rispetto alla tua bolletta: <b style="color:var(--primary-600);font-size:1.25rem;font-family:var(--font-display)">${rStr}</b><br><span style="color:var(--muted);font-size:.8rem">IVA inclusa, sulla parte energia (senza RID → con RID). La conferma la fa il consulente in call. <b style="color:var(--primary)">→ Prenota la call per questa offerta</b></span></div>` : ''}
+      ${rStr ? `<div style="margin:12px 0 2px;background:var(--primary-100);border-radius:10px;padding:12px 14px;font-size:.95rem;cursor:pointer" onclick="pickOfferta('${o.gestore.replace(/'/g,"\\'")}', '${(o.nomeCte || '').replace(/'/g,"\\'")}')">⚡ Risparmio stimato rispetto alla tua bolletta: <b style="color:var(--primary-600);font-size:1.25rem;font-family:var(--font-display)">${rStr}</b><br><span style="color:var(--muted);font-size:.8rem">IVA inclusa, sulla parte energia, con RID bancario già incluso nel calcolo. La conferma la fa il consulente in call. <b style="color:var(--primary)">→ Prenota la call per questa offerta</b></span></div>` : ''}
       <div class="specs">
-        ${o.luce ? `<div><b>${o.luce}</b><br>Prezzo energia Luce${o.luceVariabile ? ' <span class="badge" style="font-size:.7rem">variabile PUN</span>' : ''}</div>` : ''}
-        ${o.luceScontata ? `<div><b>${o.luceScontata}</b><br>Luce scontata −${o.pctL}%${o.nomeL ? ' (' + o.nomeL + ')' : ''}</div>` : ''}
-        ${o.luceRid ? `<div><b>${o.luceRid}</b><br>Luce con RID −${o.pctDomL}%</div>` : ''}
+        ${o.luce && !o.luceScontata && !o.luceRid ? `<div><b>${o.luce}</b><br>Prezzo energia Luce${o.luceVariabile ? ' <span class="badge" style="font-size:.7rem">variabile PUN</span>' : ''}</div>` : ''}
+        ${(o.luceScontata || o.luceRid) ? `<div><b>${o.luceRid || o.luceScontata}</b><br>Prezzo energia Luce${o.luceScontata && o.luceRid ? ` (sconto −${o.pctL}% + RID −${o.pctDomL}% già incluso)` : (o.luceScontata ? ` (sconto −${o.pctL}% già incluso)` : ` (RID −${o.pctDomL}% già incluso)`)}</div>` : ''}
         ${o.quotaFissaLuce ? `<div><b>${o.quotaFissaLuce}</b><br>Quota fissa Luce</div>` : ''}
-        ${o.gas ? `<div><b>${o.gas}</b><br>Prezzo energia Gas${o.gasVariabile ? ' <span class="badge" style="font-size:.7rem">variabile PSV</span>' : ''}</div>` : ''}
-        ${o.gasScontato ? `<div><b>${o.gasScontato}</b><br>Gas scontato −${o.pctG}%${o.nomeL ? ' (' + o.nomeL + ')' : ''}</div>` : ''}
-        ${o.gasRid ? `<div><b>${o.gasRid}</b><br>Gas con RID −${o.pctDomG}%</div>` : ''}
+        ${o.gas && !o.gasScontato && !o.gasRid ? `<div><b>${o.gas}</b><br>Prezzo energia Gas${o.gasVariabile ? ' <span class="badge" style="font-size:.7rem">variabile PSV</span>' : ''}</div>` : ''}
+        ${(o.gasScontato || o.gasRid) ? `<div><b>${o.gasRid || o.gasScontato}</b><br>Prezzo energia Gas${o.gasScontato && o.gasRid ? ` (sconto −${o.pctG}% + RID −${o.pctDomG}% già incluso)` : (o.gasScontato ? ` (sconto −${o.pctG}% già incluso)` : ` (RID −${o.pctDomG}% già incluso)`)}</div>` : ''}
         ${o.quotaFissaGas ? `<div><b>${o.quotaFissaGas}</b><br>Quota fissa Gas</div>` : ''}
         ${!o.luce && !o.gas && !o.luceScontata && !o.gasScontato ? '<div><b>Condizioni in call</b><br>Chiedi al consulente</div>' : ''}
         ${o.validaFino ? `<div><b>al ${o.validaFino}</b><br>Valide fino</div>` : ''}
@@ -3378,6 +3414,7 @@ function vOfferte(){
         ${o.vincolo && !o.vincolo.mesi && o.vincolo.garanzia_mesi ? `<div><b>${o.vincolo.garanzia_mesi} mesi</b><br>Prezzo garantito</div>` : ''}
         ${o.vincolo && o.vincolo.penale ? `<div><b>${o.vincolo.penale_eur ? 'fino a ' + eurP(o.vincolo.penale_eur) : 'da tabellone'}</b><br>Penale recesso anticipato</div>` : ''}
       </div>
+              ${(o.luceScontata || o.gasScontato) ? `<div style="font-size:.82rem;color:var(--muted);margin-top:8px">💡 Sconto automatico per tutti, già applicato al prezzo mostrato${o.luceScontata && o.pctL ? ' · luce −' + o.pctL + '%' : ''}${o.gasScontato && o.pctG ? ' · gas −' + o.pctG + '%' : ''}${(o.luceRid || o.gasRid) ? '. Il RID bancario è già incluso nel calcolo del risparmio: senza RID la materia sale al prezzo di listino' : ''}.</div>` : ''}
       <details class="dettaglio-cte"><summary>Maggiori info</summary>
       ${(o.luceScontata || o.gasScontato || o.luceRid || o.gasRid) ? `<div style="font-size:.8rem;color:var(--muted);margin-top:10px">I prezzi sono comprensivi di dispacciamento, come da CTE. Il prezzo garantito in CTE è quello pieno; gli sconti sono vantaggi attuali del gestore. Il RID −${o.pctDomL || o.pctDomG}% vale solo con addebito SEPA (RID) attivo: senza RID il prezzo sale a quello della riga sopra.</div>` : ''}
       ${(o.luceVariabile && o.lucePunMedio) ? `<div style="font-size:.8rem;color:var(--muted);margin-top:10px">Offerta variabile indicizzata al PUN: il prezzo stimato riportato = PUN medio ${o.lucePunMese} (${eurP(o.lucePunMedio)}/kWh) + spread ${eurP(o.luceSpread)}/kWh. Il prezzo reale cambia ogni mese con il mercato.</div>` : ""}
@@ -3386,18 +3423,21 @@ function vOfferte(){
       ${(o.fasceLuce && o.fasceLuce.media) ? '<div style="font-size:.8rem;color:var(--muted);margin-top:10px">⚡ Offerta solo a fasce orarie: il prezzo è la media delle fasce (' + Object.keys(o.fasceLuce).filter(k => k !== 'media').map(k => k + ' ' + eurP(o.fasceLuce[k])).join(', ') + ' → media ' + eurP(o.fasceLuce.media) + '). Il consumo reale per fascia può leggermente variare dalla media.</div>' : ''}
       </details>
       ${(o.vincolo && (o.vincolo.garanzia_note || o.vincolo.penale)) ? `<div style="font-size:.8rem;color:var(--muted);margin-top:10px">🛡️ ${o.vincolo && o.vincolo.garanzia_note ? 'Garanzia di prezzo: ' + String(o.vincolo.garanzia_note).replace(/</g,"&lt;") + '<br>' : ''}${o.vincolo && o.vincolo.penale ? 'Penale recesso anticipato: ' + (o.vincolo.penale_eur ? 'fino a ' + eurP(o.vincolo.penale_eur) + ' — ' : '') + (o.vincolo.penale_note ? String(o.vincolo.penale_note).replace(/</g,"&lt;") : 'l\'importo esatto te lo dice il consulente in call') : ''}</div>` : ''}
+      <div class="sub" style="margin-top:12px;font-size:.78rem">⏳ ${o.validaFino ? 'Offerta in validità fino a <b>' + dF(o.validaFino) + '</b> — ' : ''}la compagnia può modificarla o ritirarla in anticipo senza preavviso (fine promozione o esaurimento dei volumi). Ti interessa? Completa la richiesta ora, o il più presto possibile.</div>
       <button class="btn btn-primary" style="margin-top:12px" onclick="pickOfferta('${o.gestore.replace(/'/g,"\\'")}', '${(o.nomeCte || '').replace(/'/g,"\\'")}')">Prenota la call per questa offerta</button>
       <button class="btn btn-ghost" style="margin-top:10px" onclick="avviaOrdine('${o.gestore.replace(/'/g,"\\'")}', '${(o.nomeCte || '').replace(/'/g,"\\'")}')">Attiva questa offerta: compila la richiesta</button>
     </div>`; }).join('')}
+    </div>
 
     ${ordered.length > 5 && !state.mostraTutte ? `<button class="btn btn-primary" style="margin-top:14px" onclick="state.mostraTutte = true; render('offerte-view')">Vedi tutte le ${ordered.length} offerte in essere</button>` : ''}
 
-    <div class="alert info" style="margin-top:14px">✓ <b>Verifica reale</b>: ${nGestori} gestori censiti dal nostro ufficio e aggiornati il ${state.regAggiornato ? dF(state.regAggiornato.slice(0, 10)) : 'oggi'} — le prime ${Math.min(5, ordered.length)} sono le più convenienti per te.</div>
+    <div class="alert info" style="margin-top:14px">✓ <b>Verifica reale</b>: ${nGestori} gestori censiti dal nostro ufficio e aggiornati il ${state.regAggiornato ? dF(state.regAggiornato.slice(0, 10)) : 'oggi'} — le prime ${Math.min(5, ordered.length)} sono le più convenienti per te.<br>⚠ <b>Attenzione ai tempi</b>: le CTE sono promozioni a tempo — la compagnia può modificarle o ritirarle in anticipo senza preavviso (fine promozione o esaurimento dei volumi). Se ti interessa: <b>completa la richiesta ora</b>, o al più presto — qui sotto, o fatti inviare il riepilogo via email.</div>
 
     <div class="card" style="margin-top:18px">
       <p class="sub" style="margin-bottom:10px">Vuoi valutarle tutte insieme, sulla tua bolletta vera?</p>
       <button class="btn btn-primary" onclick="state.offertaScelta=null; go('prenota')">Prenota la call di 15 minuti</button>
       <button class="btn btn-ghost" style="margin-top:10px" onclick="inviaRiepilogoEmail()">Non posso adesso: inviami il riepilogo via Email</button>
+      <button class="btn btn-primary" style="margin-top:10px;white-space:normal">🎁 Invita e guadagna: fino a 500 € per te</button>
       <div class="hint" style="margin-top:8px">Ti arriva a ${state.dati.email || 'la tua email'} con le prime 5 offerte e il risparmio stimato: se non prenoti la call, l'ufficio ti richiama.</div>
       <div id="ripErr"></div>
       ${btnIndietro()}
@@ -3483,6 +3523,7 @@ function vPrenota(){
     <p class="sub">Un consulente DDM Soluzioni analizza la tua bolletta e ti dice se conviene cambiare, e quanto. Gratuito, senza impegno.</p>
 
     ${state.offertaScelta ? `<div class="alert info">Offerta che ti interessa: <b>${state.offertaScelta}</b>${state.offertaSceltaCte ? ' — ' + state.offertaSceltaCte : ''}</div>` : ''}
+    ${rifAttuale() ? `<div class="hint" style="margin:10px 0">🤝 Sei stato invitato da un amico: quando diventi cliente, il suo bonus Amazon parte.</div>` : ''}
 
     ${state.cliente === 'azienda' ? `
     <div style="font-weight:700;margin-bottom:10px">Come preferisci la consulenza?</div>
@@ -3525,7 +3566,7 @@ function vPrenota(){
     <div class="lead-cta">
       <div class="lead-cta-title">Preferisci fissare un appuntamento in ufficio?</div>
       <div class="lead-cta-text">Sedi di Vicenza e Padova: porti la bolletta, l'analisi la facciamo insieme di persona.</div>
-      ${WHATSAPP_DDM ? `<a class="btn btn-lead" href="https://wa.me/${WHATSAPP_DDM}?text=${encodeURIComponent('Vorrei fissare un appuntamento in ufficio (Vicenza/Padova)')}" target="_blank" rel="noopener">Appuntamento in ufficio (Vicenza e Padova)</a>` : `<button class="btn btn-lead" onclick="go('contatti')">Appuntamento in ufficio (Vicenza e Padova)</button>`}
+      ${WHATSAPP_DDM ? `<a class="btn btn-lead" href="https://wa.me/${WHATSAPP_DDM}?text=${encodeURIComponent('Vorrei fissare un appuntamento in ufficio (Vicenza/Padova)' + rifTag())}" target="_blank" rel="noopener">Appuntamento in ufficio (Vicenza e Padova)</a>` : `<button class="btn btn-lead" onclick="go('contatti')">Appuntamento in ufficio (Vicenza e Padova)</button>`}
     </div>
     </div>`;
 }
@@ -3605,7 +3646,7 @@ async function confermaPrenota(){
       if(await inviaViaGoogle(ogg, msg, null, { mode: 'prenota', data: payload.data, fascia: p.fascia, nome: d.nome })){ /* prenotata: la fascia risulta occupata anche agli altri */ }
       else if(EMAIL_DDM){ apriEmailRiepilogo(ogg, msg); }
       else if(WHATSAPP_DDM){
-        window.open('https://wa.me/' + WHATSAPP_DDM + '?text=' + encodeURIComponent(msg), '_blank');
+        window.open('https://wa.me/' + WHATSAPP_DDM + '?text=' + encodeURIComponent(msg + rifTag()), '_blank');
       }
       state.prenotaConfermata = payload;
       go('conferma');
@@ -3660,7 +3701,7 @@ function vConferma(){
       </table>
       <div class="alert info">Riceverai l'invito per il calendario. Se l'orario non andasse bene, lo spostiamo noi: nessun problema.</div>
       <button class="btn btn-primary" style="margin-top:14px" onclick="resetWizard()">Torna alla Home</button>
-      <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="go('home')">🎁 Passaparola: condividi lo strumento e ricevi fino a 500 € di buoni Amazon</button>
+      <button class="btn btn-primary" style="margin-top:14px;width:100%" onclick="go('invita')">🎁 Passaparola: condividi lo strumento e ricevi fino a 500 € di buoni Amazon</button>
       <p style="color:var(--muted);font-size:.75rem;margin-top:8px;text-align:center">A ogni amico che firma: 20 € di bonus per te (fino a 25 segnalati).</p>
       <p style="color:var(--muted);font-size:.75rem;margin-top:8px;text-align:center">Anche un collega o un amico può provarlo: consulenza gratuita.</p>
     </div>
@@ -3674,6 +3715,10 @@ function vInvita(){
   <div class="anim">
     <h1 class="title">Conosci DDM Soluzioni</h1>
     <p class="sub">Leggi le recensioni dei nostri clienti su Google e condividi il servizio con un collega.</p>
+    <div class="card" style="margin-top:14px;text-align:center;background:linear-gradient(135deg,#fff6dd,#ffe9b8);border-color:#ffd166">
+      <div style="font-size:1.5rem;font-weight:800;color:#8a5a00;font-family:var(--font-display)">🎁 Per te: fino a 500 € di bonus Amazon</div>
+      <div style="font-size:.8rem;color:#7a4d00;margin-top:4px">Invita amici e colleghi: 20 € per ogni segnalato che diventa cliente. Noi inviamo l’invito per te, con te in copia.</div>
+    </div>
     <div class="card">
       <a class="reviews" style="margin-top:0" href="${REVIEWS_URL}" target="_blank" rel="noopener">
         <span class="stars">★★★★★</span>
@@ -3684,6 +3729,28 @@ function vInvita(){
       <button class="btn btn-primary" onclick="copyRef('${REVIEWS_URL}')">Copia il link</button>
       <button class="btn btn-ghost" style="margin-top:10px" onclick="shareRef()">Condividi su WhatsApp</button>
       <div class="alert info" style="margin-top:14px">La consulenza è gratuita: carica la bolletta, guarda le offerte e prenota una call di 15 minuti.</div>
+    <div class="card" style="margin-top:16px;text-align:left">
+      <div style="font-weight:700;margin-bottom:6px">🎁 Passaparola: fino a 500 € di bonus Amazon</div>
+      <p class="sub" style="margin:.1rem 0 10px">Condividi lo strumento con colleghi o amici, poi segnala qui i loro contatti: <b>per ogni segnalato che diventa cliente ricevi 20 € di bonus Amazon</b> — fino a 25 email, quindi fino a 500 € in totale. Aggiungi i contatti: <b>noi inviamo l’invito per te, con te in copia</b>.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="ppNome" style="flex:1 1 130px" placeholder="Il tuo nome" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}">
+        <input id="ppEmail" type="email" style="flex:1 1 170px" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}">
+      </div>
+      <div class="field" style="margin-top:8px"><input id="ppCell" type="tel" inputmode="tel" placeholder="Il tuo numero WhatsApp (genera il tuo link personale)" value="${((state.dati || {}).cell || "").replace(/"/g, "&quot;")}" oninput="rifAggiorna()"></div>
+      <div class="field" style="margin-top:10px"><input readonly id="ppLinkRif" onclick="this.select()" value="${location.href.split("?")[0].split("#")[0]}"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="rifAggiorna(); copyRef(linkRifCorrente())">Copia il tuo link personale</button>
+        <button class="btn btn-ghost" onclick="shareRif()">Condividi su WhatsApp</button>
+      </div>
+      <p class="note" style="margin:6px 0 0">Scrivi qui sopra il tuo numero WhatsApp e il link diventa tuo: chi lo apre è censito come segnalato da te. Senza email dell'amico va benissimo il cellulare.</p>
+      <div id="ppList" style="margin-top:8px"><input class="ppIn" style="width:100%" placeholder="Email o cellulare amico #1"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi un contatto (fino a 25)</button>
+        <button class="btn btn-primary" onclick="ppInvia()">Invia le segnalazioni all’ufficio</button>
+      </div>
+      <div id="ppMsg" style="margin-top:8px"></div>
+      <p class="note" style="margin-top:6px">I contatti restano riservati: arrivano solo all’ufficio. A ogni amico che firma la chiamiamo per attivare la sua offerta e confermiamo a te il bonus via email.</p>
+    </div>
     </div>
   </div>`;
 }
@@ -3695,6 +3762,34 @@ function shareRef(){
 
 /* ---------- PASSAPAROLA — bonus 20 € Amazon ---------- */
 const PP_MAX = 25;
+
+/* ---------- RIF: link personale del segnalatore ---------- */
+// il codice del segnalatore sono le cifre del suo numero WhatsApp (6–15 cifre)
+function rifValido(c){ return /^[0-9]{6,15}$/.test(String(c || '')); }
+// legge ?rif= dall'URL (arrivo da WhatsApp), lo ricorda 90 giorni, torna il codice attivo
+function rifAttuale(){
+  try{
+    let c = '';
+    try{ const m = (location.search || '').match(/[?&]rif=([0-9]{6,15})/); if(m) c = m[1]; }catch{}
+    if(c){ try{ localStorage.setItem('ddm_rif', JSON.stringify({ c: c, ts: Date.now() })); }catch{} return c; }
+    const s = JSON.parse(localStorage.getItem('ddm_rif') || 'null');
+    if(s && s.c && rifValido(s.c) && (Date.now() - (s.ts || 0)) < 90 * 24 * 3600 * 1000) return s.c;
+    try{ localStorage.removeItem('ddm_rif'); }catch{}
+  }catch{}
+  return '';
+}
+// link da condividere: personale se c'è il numero del segnalatore, altrimenti recensioni
+function linkRifCorrente(){
+  const cell = ((document.getElementById('ppCell') || {}).value || '').replace(/[^0-9]/g, '');
+  if(rifValido(cell)) return location.href.split('?')[0].split('#')[0] + '?rif=' + cell;
+  return REVIEWS_URL;
+}
+function rifAggiorna(){ const i = document.getElementById('ppLinkRif'); if(i) i.value = linkRifCorrente(); }
+function shareRif(){
+  const text = 'Ti segnalo DDM Soluzioni: caricare la bolletta e vedere subito le offerte luce e gas con il risparmio stimato. Gratis e senza impegno. ' + linkRifCorrente();
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+function rifTag(){ const r = rifAttuale(); return r ? ' [rif:' + r + ']' : ''; }
 function ppAggiungi(){
   const box = document.getElementById('ppList');
   if(!box) return;
@@ -3713,15 +3808,17 @@ async function ppInvia(){
   const nome = ((document.getElementById('ppNome') || {}).value || '').trim();
   const mia = ((document.getElementById('ppEmail') || {}).value || '').trim();
   if(!mia || mia.indexOf('@') < 1){ msg.innerHTML = '<div class="alert error">Scrivi la tua email: è dove ricevi il bonus Amazon.</div>'; return; }
+  const cell = ((document.getElementById('ppCell') || {}).value || '').trim().replace(/[^0-9]/g, '');
+  if(!cell){ msg.innerHTML = '<div class="alert error">Aggiungi anche il tuo numero WhatsApp: serve per il tuo link personale e per censire i segnalati.</div>'; return; }
   msg.innerHTML = '<div class="alert info">Invito in partenza a ' + contatti.length + ' contatti, con te in copia…</div>';
   let inviata = false;
   try{
-    const qs = new URLSearchParams({ tipo: 'passaparola', nome: nome, mia: mia, contatti: contatti.join('|'), link: (location.href.split('#')[0] || '') }).toString();
+    const qs = new URLSearchParams({ tipo: 'passaparola', nome: nome, mia: mia, cell: cell, rif: cell, contatti: contatti.join('|'), link: (linkRifCorrente() || location.href.split('#')[0] || '') }).toString();
     await fetch(GOOGLE_SCRIPT_URL + '?' + qs, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
     inviata = true;
   } catch(e2){
     try{
-      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ oggetto: 'PASSAPAROLA 20€ Amazon — ' + (nome || mia), corpo: 'Inviti passaparola DDM Soluzioni', dest: mia, tipo: 'passaparola', nome: nome, contatti: contatti.join('|'), link: (location.href.split('#')[0] || '') }) });
+      await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ oggetto: 'PASSAPAROLA 20€ Amazon — ' + (nome || mia), corpo: 'Inviti passaparola DDM Soluzioni', dest: mia, tipo: 'passaparola', nome: nome, cell: cell, rif: cell, contatti: contatti.join('|'), link: (linkRifCorrente() || location.href.split('#')[0] || '') }) });
       inviata = true;
     } catch(e3){}
   }
@@ -3790,6 +3887,7 @@ async function inviaViaGoogle(oggetto, corpo, dest, extra){
   try{
     const payload = { oggetto: oggetto.slice(0, 160), corpo: corpo.slice(0, 20000) };
     if(dest) payload.dest = dest;
+    { const r0 = rifAttuale(); if(r0) payload.rif = r0; }   // censimento passaparola: chi ha condiviso il link
     try{ if(!dest) payload.bollette = await allegatiBollette(); } catch{}
     if(extra) Object.assign(payload, extra);   // meta prenotazione (data/fascia/nome): salvarlo lato Google
     await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
@@ -3803,7 +3901,8 @@ async function inviaViaGoogle(oggetto, corpo, dest, extra){
    ha prenotato la call. */
 function riepilogoOfferteCorpo(){
   const pool = offerteCompatibili();
-  const ordered = [...pool.list].sort((a, b) => punteggioOfferta(a) - punteggioOfferta(b));
+  const penOrd = (o) => ((o.vincolo || {}).penale || /penale/i.test(o.nomeCte || '')); /* PENALI_IN_BASSO */
+const ordered = [...pool.list].sort((a, b) => (penOrd(a) - penOrd(b)) || (punteggioOfferta(a) - punteggioOfferta(b)));
   const al = (state.analisi || {}).luce || {}, ag = (state.analisi || {}).gas || {};
   const righe = ordered.slice(0, 5).map((o, ix) => {
     const r = risparmioOfferta(o);
@@ -3864,7 +3963,7 @@ async function sendContact(){
     toast('Aperta la email precompilata');
   } else if(WHATSAPP_DDM){
     const msg = 'Ciao DDM Soluzioni! Vorrei essere contattato.\nNome: ' + n + '\nTelefono: ' + t + (state.dati.email ? '\nEmail: ' + state.dati.email : '');
-    window.open('https://wa.me/' + WHATSAPP_DDM + '?text=' + encodeURIComponent(msg), '_blank');
+    window.open('https://wa.me/' + WHATSAPP_DDM + '?text=' + encodeURIComponent(msg + rifTag()), '_blank');
     $('#kErr').innerHTML = '<div class="alert info">Ti ho aperto la chat WhatsApp precompilata: invia il messaggio e ti contattiamo entro 24 ore lavorative.</div>';
     toast('Aperta la chat WhatsApp');
   } else {
@@ -4279,7 +4378,7 @@ async function ordGenera(){
       <p class="sub">La pratica è pronta per il portale del fornitore: il JSON scaricato contiene i campi dello schema già mappati (step1/step2/step3 con i nomi esatti del form lungo).</p>
       <div style="display:flex;gap:10px;margin-top:14px">
         ${!inviata ? `<button class="btn btn-ghost" style="flex:1" onclick="apriEmailRiepilogo(window.__ordOggetto, window.__ordTxt)">Invia manualmente via email</button>` : ''}
-        <button class="btn btn-primary" style="flex:1;white-space:normal" onclick="go('home')">🎁 Passaparola: fino a 500 € di buoni Amazon — condividi lo strumento</button>
+        <button class="btn btn-primary" style="flex:1;white-space:normal" onclick="go('invita')">🎁 Passaparola: fino a 500 € di buoni Amazon — condividi lo strumento</button>
         <button class="btn btn-ghost" style="flex:1" onclick="resetWizard()">Torna alla Home</button>
       </div>
     </div>
