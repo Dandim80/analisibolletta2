@@ -195,6 +195,7 @@ table.summary td:last-child{text-align:right;font-weight:700;color:var(--text)}
 <div class="topbar"><div class="topbar-inner">
   <div class="brand" onclick="demoTap()"><div class="brand-mark">D</div>DDM Soluzioni</div>
   <div style="display:flex;gap:4px">
+    <button class="btn-link" onclick="go('privacy')">Privacy</button>
     <button class="btn-link" onclick="go('contatti')">Contatti</button>
   </div>
 </div></div>
@@ -234,8 +235,8 @@ const REVIEWS_URL = 'https://www.google.com/search?sca_esv=d56ac8f1b03a4dc8&rlz=
 
 /* Sito pubblico per il passaparola: il link personale è SITO_URL + ?rif=<numero WhatsApp di chi invita>
    (chi apre il link viene censito come segnalato da quel numero, anche nei payload al watcher).
-   Finché www.pagotroppo.it non è live il link resta quello di GitHub Pages. */
-const SITO_URL = 'https://dandim80.github.io/analisibolletta2/';
+   Link pubblico LIVE: www.pagotroppo.it (da oggi il passaparola punta lìello di GitHub Pages. */
+const SITO_URL = 'https://www.pagotroppo.it/';
 
 const state = {
   utenza: null,            // 'luce' | 'gas' | 'entrambi'
@@ -4202,38 +4203,41 @@ function vInvita(){
       <div style="font-size:.85rem;color:#7a4d00;margin-top:6px">Più amici e parenti fai conoscere il portale e più Buoni puoi accumulare (fino a 500 €: 25 segnalazioni).</div>
     </div>
     <div class="card" style="margin-top:16px;text-align:left">
-      <div style="font-weight:800;margin:0 0 6px;color:var(--primary-600)">1 · Il tuo link personale</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input id="ppNome" style="flex:1 1 130px" placeholder="Il tuo nome" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}">
-        <input id="ppCell" type="tel" inputmode="tel" placeholder="Il tuo numero WhatsApp" value="${((state.dati || {}).cell || "").replace(/"/g, "&quot;")}" oninput="rifAggiorna()">
-      </div>
-      <div class="field" style="margin-top:8px"><input readonly id="ppLinkRif" onclick="this.select()" value="${SITO_URL}"></div>
-      <p class="note" style="margin:6px 0 0">Scrivi sopra il tuo numero WhatsApp: il link diventa tuo — <b>chi lo apre è censito come segnalato da te</b> per 90 giorni, anche senza lasciare i suoi dati. Vediamo il tuo numero su tutto: analisi, consulenza e richiesta di attivazione.</p>
-      <button class="btn btn-ghost" style="margin-top:8px" onclick="rifAggiorna(); copyRef(linkRifCorrente())">📋 Copia il link personale</button>
+  <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">1 · Il tuo link personale</div>
+  <div class="field"><label class="fl" for="ppNome">Il tuo nome</label><input id="ppNome" placeholder="Es. Marco" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}"></div>
+  <div class="field"><label class="fl" for="ppCell">Il tuo numero WhatsApp</label><input id="ppCell" type="tel" inputmode="tel" placeholder="Es. 349 1234567" value="${((state.dati || {}).cell || "").replace(/"/g, "&quot;")}" oninput="rifAggiorna()"><div class="hint">Il link diventa tuo: chi lo apre è censito come segnalato da te per 90 giorni, anche senza lasciare i suoi dati.</div></div>
+  <div class="field"><label class="fl" for="ppLinkRif">Il tuo link da condividere</label><input readonly id="ppLinkRif" onclick="this.select()" value="${SITO_URL}"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px">
+    <button class="btn btn-ghost" onclick="rifAggiorna(); copyRef(linkRifCorrente())">📋 Copia il link</button>
+    <button class="btn btn-primary" onclick="shareRif()">📲 Condividi su WhatsApp</button>
+  </div>
+</div>
 
-      <div style="font-weight:800;margin:16px 0 8px;color:var(--primary-600)">2 · Come fare arrivare l'invito: scegli tu</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <div style="flex:1 1 240px;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left">
-          <div style="font-weight:700">📲 Diretto su WhatsApp</div>
-          <p class="note" style="margin:4px 0 8px">Più diretto per amici e parenti: apriti il link e inoltralo a chi vuoi.</p>
-          <button class="btn btn-primary" onclick="shareRif()">📲 Condividi su WhatsApp</button>
-        </div>
-        <div style="flex:1 1 240px;border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left">
-          <div style="font-weight:700">✉️ Mandiamo noi l'invito via email</div>
-          <p class="note" style="margin:4px 0 0">Ti basta la loro email: partono da noi con te in copia (passo 3).</p>
-        </div>
-      </div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;text-align:left">
+  <div class="card" style="margin:0">
+    <div style="font-weight:800;font-size:1.05rem;margin:0 0 8px;color:var(--primary-600)">2 · Invito su WhatsApp</div>
+    <p class="note" style="margin:0 0 10px">Più diretto per amici e parenti: apri il link con il tuo messaggio e inoltralo a chi vuoi.</p>
+    <button class="btn btn-primary" onclick="shareRif()" style="width:100%">📲 Apri WhatsApp</button>
+  </div>
+  <div class="card" style="margin:0">
+    <div style="font-weight:800;font-size:1.05rem;margin:0 0 8px;color:var(--primary-600)">3 · Invito via email (per noi)</div>
+    <p class="note" style="margin:0 0 10px">Ti basta la loro email: l'invito parte dall'ufficio e a te arriva in copia.</p>
+    <button class="btn btn-ghost" onclick="const e=document.getElementById('ppEmail'); if(e){ e.focus(); e.scrollIntoView({behavior:'smooth', block:'center'}); }" style="width:100%">✉️ Vai agli inviti email</button>
+  </div>
+</div>
 
-      <div style="font-weight:800;margin:14px 0 6px;color:var(--primary-600)">3 · Le email dei tuoi amici (opzione ✉️)</div>
-      <input id="ppEmail" type="email" style="width:100%" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}">
-      <div id="ppList" style="margin-top:8px"><input class="ppIn" style="width:100%" type="email" placeholder="Email amico #1"></div>
-      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi una email (fino a 25)</button>
-        <button class="btn btn-primary" onclick="ppInvia()">✉️ Invita per email via ufficio</button>
-      </div>
-      <div id="ppMsg" style="margin-top:8px"></div>
-      <p class="note" style="margin-top:6px">Le email restano riservate: arrivano solo all'ufficio. A ogni amico che firma la chiamiamo per attivare la sua offerta e confermiamo a te il bonus via email.</p>
-    </div>
+<div class="card" style="margin-top:14px;text-align:left">
+  <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">4 · Le email dei tuoi amici (invio via ufficio)</div>
+  <div class="field"><label class="fl" for="ppEmail">La tua email (ricevi il bonus)</label><input id="ppEmail" type="email" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}"></div>
+  <div id="ppList" style="margin-top:2px"><input class="ppIn" style="width:100%" type="email" placeholder="Email amico #1"></div>
+  <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi una email (fino a 25)</button>
+    <button class="btn btn-primary" onclick="ppInvia()">✉️ Invita per email via ufficio</button>
+  </div>
+  <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:.85rem;cursor:pointer"><input type="checkbox" id="ppConsenso" style="margin-top:2px"><span>Autorizzo il trattamento del mio nome e dei miei contatti per il programma passaparola e delle email degli amici che mi chiedono di invitare (buono Amazon). Può essere revocata scrivendo a <b>ddmsoluzioni@gmail.com</b>.</span></label>
+  <div id="ppMsg" style="margin-top:8px"></div>
+  <p class="note" style="margin-top:6px">Le email restano riservate: arrivano solo all'ufficio. A ogni amico che firma la chiamiamo per attivare la sua offerta e confermiamo a te il bonus via email.</p>
+</div>
   </div>`;
 }
 function copyRef(l){ navigator.clipboard && navigator.clipboard.writeText(l); toast('Link copiato: condividi quando vuoi'); }
@@ -4284,7 +4288,9 @@ function ppAggiungi(){
 async function ppInvia(){
   const msg = document.getElementById('ppMsg');
   if(!msg) return;
+  const cons = document.getElementById('ppConsenso');
   const contatti = Array.from(document.querySelectorAll('.ppIn')).map(x => (x.value || '').trim()).filter(Boolean);
+  if(!cons || !cons.checked){ msg.innerHTML = '<div class="alert error">Spunta prima l\'autorizzazione privacy: senza quella non possiamo gestire gli inviti.</div>'; return; }
   if(!contatti.length){ msg.innerHTML = '<div class="alert error">Aggiungi almeno un contatto da segnalare.</div>'; return; }
   const nome = ((document.getElementById('ppNome') || {}).value || '').trim();
   const mia = ((document.getElementById('ppEmail') || {}).value || '').trim();
@@ -4886,7 +4892,7 @@ function ordineRiepilogoTesto(){
     const i2s = state.ordine.intestatario2 || {};
     rig.push('2 CONTRATTI DISTINCTI: luce a ' + i['intestatario.nome'] + ' ' + i['intestatario.cognome'] + ' (CF ' + i['intestatario.codice_fiscale'] + '), gas a ' + i2s.nome + ' ' + i2s.cognome + ' (CF ' + String(i2s.cf || '').toUpperCase() + '). Allegati 2 moduli PDA separati (uno per materia).');
   }
-  rig.push('Titolarità: ' + i['dati_fornitura.titolarita_immobile'] + ' — Mercato: ' + i['bolletta.tipo_mercato']);
+  rig.push('Titolarità: ' + i['dati_fornitura.titolarita_immobile'] + (i['bolletta.tipo_mercato'] ? ' — Mercato: ' + i['bolletta.tipo_mercato'] : ''));
   rig.push('Indirizzo: ' + f['indirizzo_fornitura.indirizzo'] + ', ' + f['indirizzo_fornitura.numero_civico'] + ' — ' + f['indirizzo_fornitura.istat_autocomplete'] + ' ' + f['indirizzo_fornitura.cap']);
   rig.push('Residente lì: ' + (f['dati_fornitura.indirizzo_diverso_fornitura'] === 0 ? 'Sì' : 'No'));
   if(f['bolletta.pod']) rig.push('LUCE: fornitore attuale ' + f['dati_fornitura.attuale_fornitore_luce_autocomplete'] + ' · POD ' + f['bolletta.pod'] + ' · potenza ' + f['bolletta.potenza'] + ' kW · ' + f['bolletta.livello_tensione']);
@@ -4940,23 +4946,21 @@ function vOrdine(){
       <div class="field"><label class="fl" for="oNatoIl">Data di nascita</label>
         <input id="oNatoIl" value="${ordEsc(i.natoIl || '')}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.natoIl=this.value">
         <div class="hint">${(i.natoA || i.natoIl) ? 'Arrivano dal codice fiscale: controlla che combacino (si corregcono qui).' : 'Se il codice fiscale è presente vengono compilati da soli.'}</div></div>
-    <div class="field-row">
-      <div class="field"><label class="fl" for="oDocTipo">Documento d'identità</label>
+    <div class="field" style="grid-template-columns:repeat(4,1fr);gap:10px;display:grid">
+      <div><label class="fl" for="oDocTipo">Documento</label>
         <select id="oDocTipo" onchange="state.ordine.intestatario.docTipo=this.value">
-          <option value="">Seleziona...</option>
+          <option value="">Tipo...</option>
           <option value="CI" ${i.docTipo==='CI'?'selected':''}>Carta d'identità</option>
           <option value="PATENTE" ${i.docTipo==='PATENTE'?'selected':''}>Patente</option>
         </select></div>
-      <div class="field"><label class="fl" for="oDocNum">N.° documento</label>
+      <div><label class="fl" for="oDocNum">N.° documento</label>
         <input id="oDocNum" value="${ordEsc(i.docNumero)}" oninput="state.ordine.intestatario.docNumero=this.value.toUpperCase()"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label class="fl" for="oDocEnte">Rilasciato da (ente)</label>
+      <div><label class="fl" for="oDocEnte">Rilasciato da</label>
         <input id="oDocEnte" value="${ordEsc(i.docEnte)}" placeholder="Es. COMUNE DI MILANO" oninput="state.ordine.intestatario.docEnte=this.value.toUpperCase()"></div>
-      <div class="field"><label class="fl" for="oDocData">Data di rilascio</label>
-        <input id="oDocData" value="${ordEsc(i.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.docData=this.value">
-        <div class="hint">Serve al fornitore per intestare il contratto (modulo PDA cartaceo).</div></div>
+      <div><label class="fl" for="oDocData">Data di rilascio</label>
+        <input id="oDocData" value="${ordEsc(i.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.docData=this.value"></div>
     </div>
+    <div class="hint" style="margin-top:-6px">Il documento serve al fornitore per intestare il contratto (modulo PDA cartaceo).</div>
     ${state.ordine.dual ? `
     <div style="font-weight:700;margin:18px 0 6px;border-top:2px dashed var(--border);padding-top:14px">CONTRATTO GAS — intestato a ${ordEsc(state.ordine.intestatarioBolletta.gas)}</div>
     <div class="field-row">
@@ -4971,23 +4975,21 @@ function vOrdine(){
       <div class="field"><label class="fl" for="o2NatoIl">Data di nascita</label>
         <input id="o2NatoIl" value="${ordEsc(state.ordine.intestatario2.natoIl || '')}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario2.natoIl=this.value"></div>
     </div>
-    <div class="field-row">
-      <div class="field"><label class="fl" for="o2DocTipo">Documento d'identità</label>
+    <div class="field" style="grid-template-columns:repeat(4,1fr);gap:10px;display:grid">
+      <div><label class="fl" for="o2DocTipo">Documento</label>
         <select id="o2DocTipo" onchange="state.ordine.intestatario2.docTipo=this.value">
-          <option value="">Seleziona...</option>
+          <option value="">Tipo...</option>
           <option value="CI" ${state.ordine.intestatario2.docTipo==='CI'?'selected':''}>Carta d'identità</option>
           <option value="PATENTE" ${state.ordine.intestatario2.docTipo==='PATENTE'?'selected':''}>Patente</option>
         </select></div>
-      <div class="field"><label class="fl" for="o2DocNum">N.° documento</label>
+      <div><label class="fl" for="o2DocNum">N.° documento</label>
         <input id="o2DocNum" value="${ordEsc(state.ordine.intestatario2.docNumero)}" oninput="state.ordine.intestatario2.docNumero=this.value.toUpperCase()"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label class="fl" for="o2DocEnte">Rilasciato da (ente)</label>
+      <div><label class="fl" for="o2DocEnte">Rilasciato da</label>
         <input id="o2DocEnte" value="${ordEsc(state.ordine.intestatario2.docEnte)}" placeholder="Es. COMUNE DI MILANO" oninput="state.ordine.intestatario2.docEnte=this.value.toUpperCase()"></div>
-      <div class="field"><label class="fl" for="o2DocData">Data di rilascio</label>
-        <input id="o2DocData" value="${ordEsc(state.ordine.intestatario2.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario2.docData=this.value">
-        <div class="hint">Al termine riceverai 2 moduli PDA da firmare: uno per la luce, uno per il gas.</div></div>
+      <div><label class="fl" for="o2DocData">Data di rilascio</label>
+        <input id="o2DocData" value="${ordEsc(state.ordine.intestatario2.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario2.docData=this.value"></div>
     </div>
+    <div class="hint" style="margin-top:-6px">Al termine riceverai 2 moduli PDA da firmare: uno per la luce, uno per il gas.</div>
     ` : ''}
     <div class="field"><label class="fl" for="oTi">Nell'alloggio in cui vivi sei...?</label>
       <select id="oTi" onchange="state.ordine.intestatario.titolarita=this.value">
@@ -4997,11 +4999,6 @@ function vOrdine(){
         <option value="USUFRUTTO" ${i.titolarita==='USUFRUTTO'?'selected':''}>Usufruttario</option>
         <option value="ALTRO" ${i.titolarita==='ALTRO'?'selected':''}>Altro</option>
       </select></div>
-    <div class="field"><label class="fl">Attuale fornitura</label>
-      <div style="display:flex;gap:10px">
-        <button class="btn ${i.tipo_mercato==='LIBERO'?'btn-primary':'btn-ghost'}" onclick="state.ordine.intestatario.tipo_mercato='LIBERO';render('ordine')">Mercato libero</button>
-        <button class="btn ${i.tipo_mercato==='TUTELATO'?'btn-primary':'btn-ghost'}" onclick="state.ordine.intestatario.tipo_mercato='TUTELATO';render('ordine')">Mercato tutelato</button>
-      </div></div>
     <div id="oErr"></div>
     <button class="btn btn-primary" style="margin-top:14px" onclick="ordControlla1()">Prosegui</button>
     <div style="text-align:center;margin-top:8px"><button class="btn-link" onclick="go('prenota')">Preferisci prima delle risposte? 📞 prenota la call gratuita — la richiesta resta salvata e la riprendi quando vuoi</button></div>
@@ -5019,7 +5016,6 @@ function ordControlla1(){
   if(!i.docEnte){ ordErrore('oErr','Scrivi l\'ente che ha rilasciato il documento.'); return; }
   if(!/^\d{2}\/\d{2}\/\d{4}$/.test(String(i.docData || ''))){ ordErrore('oErr','Data di rilascio non valida: scrivila come GG/MM/AAAA.'); return; }
   if(!i.titolarita){ ordErrore('oErr','Dimmi la titolarità dell\'alloggio.'); return; }
-  if(!i.tipo_mercato){ ordErrore('oErr','Scegli mercato libero o tutelato.'); return; }
   /* 2 contratti (intestatari luce/gas diversi): completa anche i dati della 2ª persona */
   const i2 = state.ordine.intestatario2;
   if(i2){
@@ -5038,22 +5034,24 @@ function vOrdine2(){
   const f = state.ordine.fornitura;
   const usaL = state.utenza !== 'gas' && state.utenza !== 'internet';
   const usaG = state.utenza !== 'luce' && state.utenza !== 'internet';
-  const usiOpt = [['cucina','Uso cottura (cucina)'],['acqua','Produzione acqua calda sanitaria'],['riscaldamento','Riscaldamento']];
+  const usiOpt = [['cucina','Cucina'],['acqua','Acqua calda'],['riscaldamento','Riscaldamento']];
   return `
   ${ordSteps(2,'Fornitura')}
   <div class="anim card">
     <h1 class="title">Dati della fornitura</h1>
     <p class="sub">Da bolletta o dai tuoi documenti: se manca qualcosa lo recuperiamo insieme in call.</p>
 
-    <div class="field"><label class="fl" for="ofCom">Comune di fornitura</label>
-      <input id="ofCom" placeholder="Es. Vicenza" value="${ordEsc(f.comune)}" oninput="state.ordine.fornitura.comune=this.value"></div>
+    <div class="field"><label class="fl" for="ofInd">Indirizzo di fornitura (via)</label>
+      <input id="ofInd" placeholder="Via / Corso ... (se dalla bolletta c'è la riga completa va bene così)" value="${ordEsc(f.indirizzo)}" oninput="state.ordine.fornitura.indirizzo=this.value"></div>
+    <div class="field-row">
+      <div class="field"><label class="fl" for="ofCiv">Numero civico</label><input id="ofCiv" value="${ordEsc(f.civico)}" oninput="state.ordine.fornitura.civico=this.value"></div>
+      <div class="field"><label class="fl" for="ofCom">Comune di fornitura</label>
+        <input id="ofCom" placeholder="Es. Vicenza" value="${ordEsc(f.comune)}" oninput="state.ordine.fornitura.comune=this.value"></div>
+    </div>
     <div class="field-row">
       <div class="field"><label class="fl" for="ofCap">CAP</label><input id="ofCap" inputmode="numeric" placeholder="36100" value="${ordEsc(f.cap)}" oninput="state.ordine.fornitura.cap=this.value"></div>
       <div class="field"><label class="fl" for="ofProv">Provincia</label><input id="ofProv" value="${ordEsc(f.provincia)}" placeholder="Es. VI" oninput="state.ordine.fornitura.provincia=this.value.toUpperCase()"></div>
-      <div class="field"><label class="fl" for="ofCiv">Numero civico</label><input id="ofCiv" value="${ordEsc(f.civico)}" oninput="state.ordine.fornitura.civico=this.value"></div>
     </div>
-    <div class="field"><label class="fl" for="ofInd">Indirizzo di fornitura</label>
-      <input id="ofInd" placeholder="Via / Corso ..." value="${ordEsc(f.indirizzo)}" oninput="state.ordine.fornitura.indirizzo=this.value"></div>
 
     <div class="field"><label class="fl">Sei residente a questo indirizzo?</label>
       <div style="display:flex;gap:10px">
@@ -5106,8 +5104,8 @@ function vOrdine2(){
         <option value="STABILE" ${f.tipoAbitazione==='STABILE'?'selected':''}>In stabile uni-plurifamiliare (massimo 6 unità)</option>
       </select></div>
     <div class="field"><label class="fl">Per quali servizi usi il Gas?</label>
-      <div style="display:grid;gap:8px">
-        ${usiOpt.map(u=>`<label style="display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--border);border-radius:8px;cursor:pointer"><input type="checkbox" ${f.usiGas.indexOf(u[0])>-1?'checked':''} onchange="state.ordine.fornitura.usiGas=this.checked?state.ordine.fornitura.usiGas.concat('${u[0]}'):state.ordine.fornitura.usiGas.filter(function(x){return x!=='${u[0]}';})"><span>${u[1]}</span></label>`).join('')}
+      <div style="display:flex;gap:8px">
+        ${usiOpt.map(u=>`<label style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;gap:6px;padding:8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.9rem"><input type="checkbox" ${f.usiGas.indexOf(u[0])>-1?'checked':''} onchange="state.ordine.fornitura.usiGas=this.checked?state.ordine.fornitura.usiGas.concat('${u[0]}'):state.ordine.fornitura.usiGas.filter(function(x){return x!=='${u[0]}';})"><span>${u[1]}</span></label>`).join('')}
       </div></div>` : ''}
 
     <div id="oErr2"></div>
@@ -5329,7 +5327,10 @@ async function ordGenera(){
 
 const PDA_ENI_CONFIG = {
   matchGestore: /\beni\b|\bplenitude\b/i,
-  matchCte: /fixa\s*time\s*24\s*smart/i,
+  /* tutte le varianti FIXA TIME (12/24, base/SMART, luce/gas): il modulo cartaceo
+     Plenitude è lo stesso per prodotto — da oggi 05/11 esistono anche 'FIXA TIME 24 LUCE
+     base' e 'FIXA TIME GAS base' (nuovo listino) che il vecchio /24 smart/ non copriva */
+  matchCte: /fixa\s*time/i,
   nomeFile: 'PDA-Eni-Plenitude.pdf'
 };
 
@@ -6275,6 +6276,7 @@ const VIEWS = {
   prenota: vPrenota, conferma: vConferma,
   invita: vInvita, contatti: vContatti,
   ordine: vOrdine, ordine2: vOrdine2, ordine3: vOrdine3, 'ordine-riepilogo': vOrdineRiep,
+  privacy: vPrivacy,
   suite: vSuite
 };
 
@@ -6289,6 +6291,61 @@ function render(view){
 
 function markNav(name){
   dock.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.nav === name));
+}
+
+/* ---------- PRIVACY (GDPR) ----------
+   Informativa breve a primo avvio + vista completa + cancellazione dati.
+   Nessun dato lascia il browser finché il cliente non chiede email/call/adesione. */
+function privacySeServe(){
+  try{ if(localStorage.getItem('ddm_privacy_ok')) return; }catch(e){ return; }
+  const o = document.createElement('div');
+  o.id = 'privacyVeil';
+  o.style.cssText = 'position:fixed;inset:0;background:rgba(10,22,40,.62);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px';
+  o.innerHTML = `
+  <div class="anim card" style="max-width:560px;text-align:left;box-shadow:0 10px 40px rgba(0,0,0,.35)">
+    <h1 class="title" style="font-size:1.15rem">Privacy: i tuoi dati, in breve</h1>
+    <p class="sub" style="margin-top:2px">Titolare del trattamento: <b>DDM Soluzioni di Daniele Di Mauro</b> — ddmsoluzioni@gmail.com.</p>
+    <p style="font-size:.9rem;line-height:1.5;margin:8px 0 0">La bolletta che carichi resta <b>nel tuo browser</b>: la usiamo solo per analizzare i consumi e prepararti le offerte (fase precontrattuale). Nessun dato viene pubblicato online. Dati e contatti ci arrivano <b>solo</b> se chiedi un'offerta via email, prenoti una call o concludi il contratto.</p>
+    <p style="font-size:.9rem;line-height:1.5;margin:8px 0 0">Conservazione: nel tuo browser finché non li cancelli (bottone «Cancella i miei dati» nella pagina <b>Privacy</b>); le pratiche di contratto seguono la normativa. Diritti (accesso, correzione, cancellazione…): scrivi a ddmsoluzioni@gmail.com — reclamo al Garante Privacy. Dettagli: <a href="#" onclick="privacyAccetta();go('privacy');return false">informativa completa</a>.</p>
+    <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="privacyAccetta()">Ho capito</button>
+  </div>`;
+  document.body.appendChild(o);
+}
+function privacyAccetta(){
+  try{ localStorage.setItem('ddm_privacy_ok', String(Date.now())); }catch(e){}
+  const o = document.getElementById('privacyVeil');
+  if(o) o.remove();
+}
+function privacyCancellaDati(){
+  try{ clearSession(); }catch(e){}
+  const keep = localStorage.getItem('ddm_privacy_ok');
+  try{
+    const chiavi = [];
+    for(let i = 0; i < localStorage.length; i++) chiavi.push(localStorage.key(i));
+    chiavi.forEach(k => { if(k !== 'ddm_privacy_ok') localStorage.removeItem(k); });
+  }catch(e){}
+  try{ if(keep) localStorage.setItem('ddm_privacy_ok', keep); }catch(e){}
+  toast('Dati cancellati dal browser.');
+  go('home');
+}
+function vPrivacy(){
+  showDock(true); markNav('');
+  return `
+  <div class="anim card" style="max-width:720px">
+    <h1 class="title">Informativa sul trattamento dei dati personali (GDPR)</h1>
+    <p class="sub">Sintesi chiara di cosa facciamo con i dati della bolletta e dei tuoi contatti.</p>
+
+    <p style="font-size:.92rem;line-height:1.55"><b>1 · Titolare del trattamento</b><br>DDM Soluzioni di Daniele Di Mauro — daniele.dimauro@gmail.com / ddmsoluzioni@gmail.com — WhatsApp 393 346 3957 27.</p>
+    <p style="font-size:.92rem;line-height:1.55"><b>2 · Quali dati</b><br>Dati presenti nella bolletta che carichi (intestatario, codice fiscale, indirizzo di fornitura, POD/PDR, consumi, prezzi) e dati che scegli di lasciarci per essere ricontattato (nome, email, cellulare). Nella modalità passaparola: nome, numero WhatsApp ed email che scrivi tu per il tuo link personale.</p>
+    <p style="font-size:.92rem;line-height:1.55"><b>3 · Perché e per quanto</b><br>Analisi dei consumi e confronto con le offerte disponibili: è attività precontrattuale su tua richiesta (art. 6.1.b GDPR), senza bisogno di consenso aggiuntivo. Ti ricontattiamo solo se lo chiedi (offerta via email, call) o concludi il contratto. Il programma passaparola usa i tuoi contatti solo con il tuo consenso esplicito (casella nella pagina Invita). La richiesta di attivazione e i moduli firmati sono conservati secondo la normativa sui contratti; gli avvisi interni di gestione vengono eliminati quando non più necessari.</p>
+    <p style="font-size:.92rem;line-height:1.55"><b>4 · Dove stanno i dati</b><br>L'analisi gira <b>nel tuo browser</b>: la bolletta e i dati letti restano sul tuo dispositivo (memoria locale del browser) finché tu non li cancelli col bottone qui sotto o non svuoti la cronologia. Quando chiedi un servizio, i dati strettamente necessari arrivano all'ufficio DDM Soluzioni via email (servizio Google — a volte implica trattamenti fuori UE, tutelati da clausole contrattuali standard) e, solo in fase di contratto, al gestore selezionato e all'azienda convenzionata incaricata. Nessun dato viene pubblicato sul sito.</p>
+    <p style="font-size:.92rem;line-height:1.55"><b>5 · I tuoi diritti</b><br>Accesso, rettifica, cancellazione, limitazione, opposizione e portabilità: scrivi a daniele.dimauro@gmail.com e rispondiamo entro 30 giorni. Puoi anche proporre reclamo al Garante per la protezione dei dati personali (www.garanteprivacy.it). I dati nel browser puoi cancellarli subito tu, da qui.</p>
+    <p style="font-size:.92rem;line-height:1.55"><b>6 · Strumenti tecnici</b><br>Questo sito usa solo memoria locale tecnica del browser (localStorage) per ricordare la tua sessione e il codice referral del passaparola: nessun cookie di tracciamento, nessun profilatore.</p>
+    <div style="display:grid;gap:10px;margin-top:16px">
+      <button class="btn btn-primary" onclick="privacyCancellaDati()">🗑️ Cancella i miei dati dal browser</button>
+      <button class="btn btn-ghost" onclick="go('home')">Torna alla home</button>
+    </div>
+  </div>`;
 }
 
 /* PRE-CARICO LIBRERIE all'apertura del sito: pdf.js + tesseract (worker + modello
@@ -6368,7 +6425,7 @@ try{ if(location.hash === '#prenota'){ setTimeout(() => go('prenota'), 50); } }c
 trovaWatcher().then(() => caricaTariffe()).then(() => { if(VIEW === 'offerte-view') render(VIEW); });   /* ripresa sessione: re-render con tariffe pronte */
 /* pre-carico librerie al load: le incorporate sono iniettate a fine body e il load
    arriva solo dopo che sono state eseguite (niente race con gli assets) */
-if(typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('load', () => { try{ preCaricaLibrerie(); } catch{} });
+if(typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('load', () => { try{ preCaricaLibrerie(); } catch{} try{ privacySeServe(); } catch{} });
 </script>
 <script>/**
  * @licstart The following is the entire license notice for the
