@@ -53,7 +53,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v5.8 (OCR, analisi, offerte, richiesta, assistente AI)</title>
+<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v5.9 (OCR, analisi, offerte, richiesta)</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='1' y='1' width='22' height='22' rx='6' fill='%2310365f'/><text x='12' y='17' font-size='13' font-weight='bold' font-family='Arial' fill='%23ffffff' text-anchor='middle'>D</text></svg>">
 <meta name="theme-color" content="#F5F7FB">
 <style id="ddm-fonts-inline">
@@ -5173,7 +5173,7 @@ async function pickGiorno(i){
       const j = await r.json();
       const occ = new Set((j && j.occupate) || []);
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: !occ.has(s) }));
-      state.prenota.calSync = (j && Object.prototype.hasOwnProperty.call(j, 'calendario')) ? (j.calendario === 'si' ? true : null) : false;   /* nota 107: 'no' può voler dire 'nessun impegno' */
+      state.prenota.calSync = (j && j.calendario === 'si') ? true : ((j && j.calendario === 'errore') ? false : null);   /* nota 109 */
       dlog('Call: ' + occ.size + ' fasce già prenotate per il ' + ymd.split('-').reverse().join('/'));
     } catch(e){                                          // canale non raggiungibile: tutte libere (le confermi tu)
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: true }));
@@ -5314,8 +5314,25 @@ function vConferma(){
 }
 
 /* ---------------- RECENSIONI / CONDIVIDI ---------------- */
+/* nota 119: chi ha appena aderito ha già nome, telefono ed email nella pratica:
+   la pagina Invita li ripropone invece di farli riscrivere */
+function ppDatiConosciuti(){
+  const d = state.dati || {}, o = state.ordine || {};
+  const i = o.intestatario || {}, az = o.azienda || {};
+  /* il numero del link è WhatsApp: un fisso (0444...) non va bene, meglio vuoto */
+  const cell = (v) => {
+    const c = String(v || '').replace(/[^0-9]/g, '');
+    const n = c.length > 10 && c.indexOf('39') === 0 ? c.slice(2) : c;
+    return n && n[0] !== '0' ? String(v).trim() : '';
+  };
+  const nome = String(d.nome || [i.nome, i.cognome].filter(Boolean).join(' ') || az.referente || az.rapp || '').trim();
+  const email = String(d.email || i.email || az.email || '').trim();
+  return { nome: nome, cell: cell(d.cell) || cell(d.telefono) || cell(i.telefono) || cell(az.telefono) || cell((state.prenota || {}).tel), email: email };
+}
 function vInvita(){
   showDock(true); markNav('invita');
+  const ppD = ppDatiConosciuti();
+  const ppV = v => String(v || '').replace(/"/g, '&quot;');
   return `
   <div class="anim">
     <h1 class="title">Conosci DDM Soluzioni</h1>
@@ -5327,10 +5344,10 @@ function vInvita(){
     <div class="card" style="margin-top:16px;text-align:left">
   <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">1 · Il tuo link personale (verificato)</div>
   <div class="field-row">
-    <div class="field"><label class="fl" for="ppNome">Il tuo nome</label><input id="ppNome" placeholder="Es. Marco" value="${((state.dati || {}).nome || "").replace(/"/g, "&quot;")}"></div>
-    <div class="field"><label class="fl" for="ppCell">Il tuo numero WhatsApp</label><input id="ppCell" type="tel" inputmode="tel" placeholder="Es. 349 1234567" value="${((state.dati || {}).cell || "").replace(/"/g, "&quot;")}" oninput="rifAggiorna()"><div class="hint">Chi apre il tuo link è censito come segnalato da te per 12 mesi, anche senza lasciare i suoi dati.</div></div>
+    <div class="field"><label class="fl" for="ppNome">Il tuo nome e cognome</label><input id="ppNome" placeholder="Es. Marco Rossi" value="${ppV(ppD.nome)}"></div>
+    <div class="field"><label class="fl" for="ppCell">Il tuo numero WhatsApp</label><input id="ppCell" type="tel" inputmode="tel" placeholder="Es. 349 1234567" value="${ppV(ppD.cell)}" oninput="rifAggiorna()"><div class="hint">Chi apre il tuo link è censito come segnalato da te per 12 mesi, anche senza lasciare i suoi dati.</div></div>
   </div>
-  <div class="field"><label class="fl" for="ppEmail">La tua email (ricevi il bonus)</label><input id="ppEmail" type="email" placeholder="La tua email (ricevi il bonus)" value="${((state.dati || {}).email || "").replace(/"/g, "&quot;")}"><div class="hint">Ti avvisiamo via email quando qualcuno usa il tuo link: da lì richiederai il buono rispondendo alla mail.</div></div>
+  <div class="field"><label class="fl" for="ppEmail">La tua email (ricevi il bonus)</label><input id="ppEmail" type="email" placeholder="La tua email (ricevi il bonus)" value="${ppV(ppD.email)}"><div class="hint">Ti avvisiamo via email quando qualcuno usa il tuo link: da lì richiederai il buono rispondendo alla mail.</div></div>
   <button class="btn btn-primary" onclick="rifCreaLink()" style="margin-top:2px">🔗 Crea il tuo link verificato</button>
 <div class="hint" style="margin-top:6px">Il link è <b>il tuo</b>: lo registriamo nell'archivio su Google (nome, numero e email) con un codice segreto. Quando qualcuno apre il link e diventa cliente, sappiamo che è merito tuo e ti spetta il buono.</div>
   <div id="ppLinkStato" style="margin-top:8px"></div>
@@ -6145,6 +6162,9 @@ function ibanValido(ibanB){
 /* ---------- Export JSON: schema identico ai payload step1/2/3 di facile ---------- */
 function ordineJson(){
   const i = state.ordine.intestatario, f = state.ordine.fornitura, p = state.ordine.pay;
+  /* nota 117: per le aziende non c'è residenza: i campi "residenza" del payload
+     restano allineati all'indirizzo di fornitura (nessun indirizzo inventato) */
+  const resiF = state.cliente === 'azienda' ? true : f.residente === 'si';
   /* dual: intestatari luce/gas diversi → 2 contratti distinti (PDA per materia) */
   const i2 = state.ordine.dual ? (state.ordine.intestatario2 || {}) : null;
   return {
@@ -6155,7 +6175,7 @@ function ordineJson(){
     step1_intestatario: {
       'intestatario.nome': i.nome, 'intestatario.cognome': i.cognome,
       'intestatario.email': i.email, 'intestatario.telefono': i.telefono,
-      'intestatario.codice_fiscale': i.cf.toUpperCase(),
+      'intestatario.codice_fiscale': String(i.cf || '').toUpperCase(),
       'dati_fornitura.titolarita_immobile': i.titolarita,
       'bolletta.tipo_mercato': i.tipo_mercato,
       'dati_fornitura.intestazione_linea': 1,
@@ -6169,9 +6189,9 @@ function ordineJson(){
       'indirizzo_fornitura.istat_autocomplete': f.comune,
       'indirizzo_fornitura.cap': f.cap, 'indirizzo_fornitura.indirizzo': f.indirizzo,
       'indirizzo_fornitura.numero_civico': f.civico,
-      'dati_fornitura.indirizzo_diverso_fornitura': f.residente === 'si' ? 0 : 1,
-      'indirizzo_residenza.istat_autocomplete': f.residente === 'si' ? f.comune : f.comuneRes,
-      'indirizzo_residenza.indirizzo': f.residente === 'si' ? f.indirizzo : f.indirizzoRes,
+      'dati_fornitura.indirizzo_diverso_fornitura': resiF ? 0 : 1,
+      'indirizzo_residenza.istat_autocomplete': resiF ? f.comune : f.comuneRes,
+      'indirizzo_residenza.indirizzo': resiF ? f.indirizzo : f.indirizzoRes,
       'dati_fornitura.attuale_fornitore_luce_autocomplete': f.fornitoreLuce,
       'bolletta.pod': f.pod.toUpperCase(), 'bolletta.spesa_annua_luce': String(nIt(f.spesaLuce) || ''),
       'bolletta.potenza_impegnata': String(f.potenza || ''),
@@ -6179,8 +6199,8 @@ function ordineJson(){
       'dati_fornitura.attuale_fornitore_gas_autocomplete': f.fornitoreGas,
       'bolletta.pdr': f.pdr, 'bolletta.spesa_annua_gas': String(nIt(f.spesaGas) || ''),
       'dati_fornitura.utilizzi_gas': f.usiGas.join(','),
-      'dati_fornitura.installazione_tipo_luce': f.residente === 'si' ? 'SWITCH' : '',
-      'dati_fornitura.installazione_tipo_gas': f.residente === 'si' ? 'SWITCH' : '' },
+      'dati_fornitura.installazione_tipo_luce': resiF ? 'SWITCH' : '',
+      'dati_fornitura.installazione_tipo_gas': resiF ? 'SWITCH' : '' },
     step3_fatturazione: {
       'bolletta.modalita_pagamento': p.modalita,
       'bolletta.iban': (p.iban || '').toUpperCase().replace(/\s/g,''),
@@ -6199,20 +6219,34 @@ function ordineRiepilogoTesto(){
   const j = ordineJson(); const i = j.step1_intestatario, f = j.step2_fornitura, p = j.step3_fatturazione;
   const rig = [];
   rig.push('RICHIESTA DI ATTIVAZIONE — ' + (state.offertaScelta || 'offerta da definire') + (state.offertaSceltaCte ? ' — ' + state.offertaSceltaCte : ''));
-  rig.push('Intestatario: ' + i['intestatario.nome'] + ' ' + i['intestatario.cognome']);
-  rig.push('Email: ' + i['intestatario.email'] + ' — Tel: ' + i['intestatario.telefono']);
-  rig.push('CF: ' + i['intestatario.codice_fiscale']);
+  const azR = state.cliente === 'azienda' ? (state.ordine.azienda || {}) : null;
+  if(azR){
+    rig.push('Azienda: ' + (azR.ragione || '') + ' — P.IVA ' + (azR.piva || azR.cf || ''));
+    if(azR.rapp || azR.rappCf) rig.push('Legale rappresentante: ' + [azR.rapp, azR.rappCf].filter(Boolean).join(' · '));
+    rig.push('Referente: ' + [azR.referente, azR.telefono, azR.email].filter(Boolean).join(' · '));
+    if(azR.ateco) rig.push('ATECO: ' + azR.ateco + (azR.attivita ? ' — ' + azR.attivita : ''));
+    if(azR.pec) rig.push('PEC: ' + azR.pec);
+  } else {
+    rig.push('Intestatario: ' + i['intestatario.nome'] + ' ' + i['intestatario.cognome']);
+    rig.push('Email: ' + i['intestatario.email'] + ' — Tel: ' + i['intestatario.telefono']);
+    rig.push('CF: ' + i['intestatario.codice_fiscale']);
+  }
   { const __diM = state.ordine.docIdentita || {};
-    rig.push('DOC ID: ' + (__diM.doc ? 'allegato (' + (__diM.doc.nome || 'foto/PDF') + ')' : 'NON allegato — si chiede a firma')
+    rig.push('DOC ID: ' + (__diM.doc ? 'allegato (' + (__diM.doc.nome || 'foto/PDF') + ')' : 'NON allegato — da chiedere in risposta all\'email')
       + (__diM.doc2 ? ' · 2° intestatario: allegato (' + (__diM.doc2.nome || '') + ')' : '')); }
   rig.push('Arrivato da (segnalatore): ' + (rifAttuale() || 'nessuno'));   /* passaparola: bonus al chi condivide */
   if(state.ordine.dual){
     const i2s = state.ordine.intestatario2 || {};
     rig.push('2 CONTRATTI DISTINCTI: luce a ' + i['intestatario.nome'] + ' ' + i['intestatario.cognome'] + ' (CF ' + i['intestatario.codice_fiscale'] + '), gas a ' + i2s.nome + ' ' + i2s.cognome + ' (CF ' + String(i2s.cf || '').toUpperCase() + '). Allegati 2 moduli PDA separati (uno per materia).');
   }
-  rig.push('Titolarità: ' + i['dati_fornitura.titolarita_immobile'] + (i['bolletta.tipo_mercato'] ? ' — Mercato: ' + i['bolletta.tipo_mercato'] : ''));
+  if(!azR) rig.push('Titolarità: ' + i['dati_fornitura.titolarita_immobile'] + (i['bolletta.tipo_mercato'] ? ' — Mercato: ' + i['bolletta.tipo_mercato'] : ''));
   rig.push('Indirizzo: ' + f['indirizzo_fornitura.indirizzo'] + ', ' + f['indirizzo_fornitura.numero_civico'] + ' — ' + f['indirizzo_fornitura.istat_autocomplete'] + ' ' + f['indirizzo_fornitura.cap']);
-  rig.push('Residente lì: ' + (f['dati_fornitura.indirizzo_diverso_fornitura'] === 0 ? 'Sì' : 'No'));
+  if(azR){
+    rig.push('Sede legale: ' + [azR.sede, azR.cap, azR.comune, azR.provincia].filter(Boolean).join(', '));
+    rig.push('Fatturazione: ' + ((azR.fatturazione && azR.fatturazione !== 'si') ? azR.fatturazione : 'sede legale'));
+  } else {
+    rig.push('Residente lì: ' + (f['dati_fornitura.indirizzo_diverso_fornitura'] === 0 ? 'Sì' : 'No'));
+  }
   if(f['bolletta.pod']) rig.push('LUCE: fornitore attuale ' + f['dati_fornitura.attuale_fornitore_luce_autocomplete'] + ' · POD ' + f['bolletta.pod'] + (f['bolletta.potenza_impegnata'] ? ' · potenza ' + f['bolletta.potenza_impegnata'] + ' kW' : '') + ' · ' + f['bolletta.livello_tensione']);
   if(f['bolletta.pdr']) rig.push('GAS: fornitore attuale ' + f['dati_fornitura.attuale_fornitore_gas_autocomplete'] + ' · PDR ' + f['bolletta.pdr'] + (f['dati_fornitura.utilizzi_gas'] ? ' · usi: ' + f['dati_fornitura.utilizzi_gas'] : ''));
   if(p['bolletta.modalita_pagamento'] === 'BOLLETTINO'){
@@ -6302,6 +6336,39 @@ async function bolletteAllegati(){
   }
   return out;
 }
+/* nota 118: la copia del documento d'identità serve a TUTTE le aziende (check list
+   e modulo PDA del fornitore): un solo blocco usato dal wizard e dal modulo unico */
+function docAzBlocco(){
+  const i = state.ordine.intestatario || (state.ordine.intestatario = {});
+  return '<div class="doc-grid">' +
+    '<div><label class="fl" for="az_docTipo">Tipo</label><select id="az_docTipo" onchange="state.ordine.intestatario.docTipo=this.value">' +
+      '<option value="">Tipo...</option><option value="CI"' + (i.docTipo === 'CI' ? ' selected' : '') + '>Carta d\'identità</option>' +
+      '<option value="PATENTE"' + (i.docTipo === 'PATENTE' ? ' selected' : '') + '>Patente</option></select></div>' +
+    '<div><label class="fl" for="az_docNum">N. documento</label><input id="az_docNum" value="' + ordEsc(i.docNumero) +
+      '" oninput="state.ordine.intestatario.docNumero=this.value.toUpperCase()"></div>' +
+    '<div><label class="fl" for="az_docEnte">Rilasciato da</label><input id="az_docEnte" value="' + ordEsc(i.docEnte) +
+      '" placeholder="Es. COMUNE DI VICENZA" oninput="state.ordine.intestatario.docEnte=this.value.toUpperCase()"></div>' +
+    '<div><label class="fl" for="az_docData">Data di rilascio</label><input id="az_docData" value="' + ordEsc(i.docData) +
+      '" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.docData=this.value"></div></div>' +
+    '<div class="dropzone" style="padding:16px;margin-top:12px" onclick="document.getElementById(\'oDocFileW\').click()">' +
+      '<div class="icon">📎</div><strong>Allega foto o PDF del documento (consigliato)</strong>' +
+      '<span>Se ce l\'hai qui, meglio: parte subito con la pratica.</span></div>' +
+    '<input id="oDocFileW" type="file" accept="image/*,application/pdf" style="display:none" onchange="onDocFile(this,\'doc\')">' +
+    '<div class="hint" id="oDocFileHint">' + docHint('doc') + '</div>' +
+    (docIdentitaMeta('doc') ? '' : '<div class="alert info" style="margin-top:8px">📎 <b>Non ce l\'hai ora? Nessun problema.</b> ' +
+      'Quando ti arriva l\'email con il contratto (o la check list con il riepilogo dei dati), <b>rispondi allegando il documento del legale rappresentante</b>: ci serve per il fornitore.</div>');
+}
+function docAzErrore(){
+  const i = state.ordine.intestatario || {};
+  if(!i.docTipo) return 'Dimmi il tipo di documento d\'identità del legale rappresentante.';
+  if(!i.docNumero) return 'Scrivi il numero del documento del legale rappresentante.';
+  if(!i.docEnte) return 'Scrivi l\'ente che ha rilasciato il documento.';
+  if(!/^\d{2}\/\d{2}\/\d{4}$/.test(String(i.docData || ''))) return 'Data di rilascio del documento non valida (GG/MM/AAAA).';
+  /* nota 120: la copia allegata è consigliata, non obbligatoria: se manca si chiede
+     in risposta all'email con il contratto (stessa regola dei clienti domestici) */
+  return '';
+}
+
 /* cosa manca per finalizzare il contratto (bollette + documento) */
 function mancanzeFinalizzazione(){
   const man = [];
@@ -6311,7 +6378,7 @@ function mancanzeFinalizzazione(){
   if(a.luce && !(files.luce || []).length && !bf.luce) man.push("l'ultima bolletta della LUCE");
   if(a.gas && !(files.gas || []).length && !bf.gas) man.push("l'ultima bolletta del GAS");
   const di = state.ordine.docIdentita || {};
-  if(!di.doc) man.push("il documento d'identità dell'intestatario");
+  if(!di.doc) man.push(state.cliente === 'azienda' ? "il documento d'identità del legale rappresentante" : "il documento d'identità dell'intestatario");
   if(state.ordine.dual && !di.doc2) man.push("il documento d'identità del 2° intestatario");
   return man;
 }
@@ -6562,7 +6629,7 @@ function guidaSteps(){
     hint: p.modalita === 'BOLLETTINO' ? '⚠️ Con il bollettino il fornitore richiede, nella prima fattura, il deposito cauzionale di circa 50 € a fornitura.' : 'Il gestore non accetta carte prepagate o IBAN esteri.',
     html: () => '<div style="display:flex;gap:10px"><button class="btn ' + (p.modalita!=='BOLLETTINO'?'btn-primary':'btn-ghost') + '" onclick="guidaPay(\'RID\')">⚡ Addebito in conto (RID)</button><button class="btn ' + (p.modalita==='BOLLETTINO'?'btn-primary':'btn-ghost') + '" onclick="guidaPay(\'BOLLETTINO\')">📋 Bollettino</button></div>'
       + (p.modalita !== 'BOLLETTINO'
-        ? '<div class="field" style="margin-top:10px"><label class="fl">IBAN <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'iban\')">📷 Scansiona</button></label><input value="' + ordEsc(p.iban) + '" placeholder="Es. IT60X0542811101000000001234" oninput="state.ordine.pay.iban=this.value"><div class="hint">Lo trovi in bolletta: verifico il codice di controllo prima dell\'invio.</div></div>'
+        ? '<div class="field" style="margin-top:10px"><label class="fl">IBAN <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'iban\')">' + scLabel('', 'Carica il file') + '</button></label><input value="' + ordEsc(p.iban) + '" placeholder="Es. IT60X0542811101000000001234" oninput="state.ordine.pay.iban=this.value"><div class="hint">Lo trovi in bolletta: verifico il codice di controllo prima dell\'invio.</div></div>'
           + '<div class="field"><label class="fl">Sei l\'intestatario del conto?</label><div style="display:flex;gap:10px"><button class="btn ' + (p.titolareConto==='1'?'btn-primary':'btn-ghost') + '" onclick="guidaTitolare(\'1\')">Sì</button><button class="btn ' + (p.titolareConto==='0'?'btn-primary':'btn-ghost') + '" onclick="guidaTitolare(\'0\')">No</button></div></div>'
           + (p.titolareConto==='0' ? '<div class="field-row"><div class="field"><label class="fl">Nome e cognome del titolare del conto</label><input value="' + ordEsc(p.nomeTitolare) + '" oninput="state.ordine.pay.nomeTitolare=this.value"></div><div class="field"><label class="fl">Codice fiscale del titolare del conto</label><input value="' + ordEsc(p.cfTitolare) + '" placeholder="Es. RSSMRA80A01H501U" oninput="state.ordine.pay.cfTitolare=this.value.toUpperCase()"></div></div><div class="hint">Servono per il mandato SEPA RID del fornitore (sconto −5%).</div>' : '')
         : ''),
@@ -6577,8 +6644,8 @@ function guidaSteps(){
     st.push({ id:'bolletta', titolo:'Allega la bolletta',
       domanda:'L\'ultima bolletta (foto o PDF) serve all\'ufficio per completare la pratica, e a me per i dati mancanti.',
       hint:'La carichi una volta sola: resta nel dossier con la richiesta.',
-      html: () => (mat.usaL ? '<div class="field"><label class="fl">Bolletta LUCE (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'luce\')">📷 Scansiona</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'luce\')"><div class="hint" id="oBolLuceHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
-      + (mat.usaG ? '<div class="field"><label class="fl">Bolletta GAS (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'gas\')">📷 Scansiona</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'gas\')"><div class="hint" id="oBolGasHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
+      html: () => (mat.usaL ? '<div class="field"><label class="fl">Bolletta LUCE (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'luce\')">' + scLabel('', 'Carica la bolletta') + '</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'luce\')"><div class="hint" id="oBolLuceHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
+      + (mat.usaG ? '<div class="field"><label class="fl">Bolletta GAS (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'gas\')">' + scLabel('', 'Carica la bolletta') + '</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'gas\')"><div class="hint" id="oBolGasHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
       + '<div class="hint">Puoi anche saltare: ti indichiamo cosa manca nell\'email col contratto, e allegherai tutto rispondendo.</div>',
       valida: () => '' });
   }
@@ -6612,10 +6679,16 @@ function vGuida(){
 }
 /* scelta della vista "ordine": con l'aiuto guidato attivo (default v5.3)
    la schermata principale è la guida; il form classico resta secondario */
+function scLinkTop(){
+  return '<div style="display:flex;justify-content:flex-end;margin:0 0 8px"><button class="sc-link-mail" onclick="SCT.apri()">📧 Salva e continua su un altro dispositivo (PC o tablet)</button></div>';
+}
 function vOrdineEntry(){
   const g = guidaInit();
-  if(g.attiva) return vGuida();
-  return (state.cliente === 'azienda') ? vOrdineAzienda() : vOrdine();
+  /* nota 112: le aziende partono dal WIZARD GUIDATO (micro-passi); il modulo unico
+     resta a portata con 'Preferisco un modulo unico' */
+  const h = g.attiva ? vGuida()
+    : ((state.cliente === 'azienda') ? (state.ordine.aziendaManuale ? vOrdineAzienda() : vGuidaAz()) : vOrdine());
+  return scLinkTop() + h;
 }
 
 /* ================= WIZARD AZIENDA (v5.6) =================
@@ -6667,12 +6740,15 @@ function vOrdineAzienda(){
     <div class="field"><label class="fl" for="zMail">Email a cui mandiamo check list e contratto</label>
       <input id="zMail" type="email" value="${ordEsc(z.email)}" placeholder="nome@azienda.it" oninput="state.ordine.azienda.email=this.value"></div>
     <div class="field-row">
-      <div class="field"><label class="fl" for="zAteco">Codice ATECO (se lo sai)</label>
+      <div class="field"><label class="fl" for="zAteco">Codice ATECO *</label>
         <input id="zAteco" value="${ordEsc(z.ateco)}" placeholder="Es. 47.11.1" oninput="state.ordine.azienda.ateco=this.value"></div>
       <div class="field"><label class="fl" for="zUso">Cosa produce / attività</label>
         <input id="zUso" value="${ordEsc(z.attivita)}" placeholder="Es. commercio al dettaglio" oninput="state.ordine.azienda.attivita=this.value"></div>
     </div>
     <div class="hint" style="margin-top:-4px">Questi dati servono al fornitore per intestare il contratto e per valutare le agevolazioni fiscali: non sono inventati, li ricontrolliamo insieme in call.</div>
+    <div style="font-weight:700;margin:16px 0 8px">Documento d'identità del legale rappresentante</div>
+    <div class="hint" style="margin-bottom:8px">Consigliato: se ce l'hai allega ora la copia del documento di chi firma; se manca la chiediamo in risposta all'email con il contratto.</div>
+    ${docAzBlocco()}
     <div id="oErrAz"></div>
     <button class="btn btn-primary" style="margin-top:14px" onclick="ordControlla1Az()">Prosegui</button>
     <button class="btn btn-ghost" style="margin-top:10px" onclick="go('offerte-view')">Indietro</button>
@@ -6690,9 +6766,27 @@ function ordControlla1Az(){
   if(!z.rapp || !z.rapp.trim()) return ok('Scrivi il nome del legale rappresentante.');
   if(z.rappCf && !cfValido(z.rappCf)) return ok('Il codice fiscale del legale rappresentante non e valido: ricontrollalo.');
   if(!z.sede || !z.sede.trim()) return ok('Scrivi l indirizzo della sede legale.');
+  if(!z.ateco || !/^\d{2}\.\d{2}\.\d{1,2}$/.test(String(z.ateco).trim())) return ok('Il codice ATECO è obbligatorio: lo trovi sulla visura (es. 47.11.1).');
+  const de = docAzErrore(); if(de) return ok(de);
   if(!z.cf && piva) z.cf = piva;
   go('ordine2');
 }
+
+/* nota 117: la fornitura azienda non è una residenza: se coincide con la sede
+   legale si copia, altrimenti resta l'indirizzo scritto a mano */
+function ordCopiaSedeAz(){
+  const z = state.ordine.azienda || {}, f = state.ordine.fornitura;
+  const sede = String(z.sede || '').trim();
+  const m = sede.match(/^(.*?)[,\s]+(\d{1,4}(?:\/[A-Za-z]{1,2})?[A-Za-z]?)$/);
+  if(m){ f.indirizzo = m[1].trim(); f.civico = m[2]; }
+  else if(sede) f.indirizzo = sede;
+  if(z.cap) f.cap = z.cap;
+  if(z.comune) f.comune = z.comune;
+  if(z.provincia) f.provincia = z.provincia;
+  render('ordine2');
+}
+function ordFattSedeAz(){ state.ordine.azienda.fattAlt = false; state.ordine.azienda.fatturazione = 'si'; render('ordine2'); }
+function ordFattAltroAz(){ state.ordine.azienda.fattAlt = true; render('ordine2'); }
 
 function vOrdine(){
   showDock(true); markNav('ordine');
@@ -6741,7 +6835,7 @@ function vOrdine(){
         <input id="oDocData" value="${ordEsc(i.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.docData=this.value"></div>
     </div>
     <div class="hint" style="margin-top:-6px">Il documento serve al fornitore per intestare il contratto (modulo PDA cartaceo).</div>
-    <div class="field"><label class="fl" for="oDocFile">Foto o PDF del documento d'identità <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('doc','doc')">📷 Scansiona</button></label>
+    <div class="field"><label class="fl" for="oDocFile">Foto o PDF del documento d'identità <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('doc','doc')">${scLabel('', 'Carica il documento')}</button></label>
     <input id="oDocFile" type="file" accept="image/*,application/pdf" onchange="onDocFile(this,'doc')">
     <div class="hint" id="oDocFileHint">${docHint('doc')}</div></div>
     ${state.utenza !== 'luce' ? `
@@ -6776,7 +6870,7 @@ function vOrdine(){
         <input id="o2DocData" value="${ordEsc(state.ordine.intestatario2.docData)}" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario2.docData=this.value"></div>
     </div>
     <div class="hint" style="margin-top:-6px">Al termine riceverai 2 moduli PDA da firmare: uno per la luce, uno per il gas.</div>
-    <div class="field"><label class="fl" for="oDocFile2">Foto o PDF del documento d'identità (2ª persona) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('doc','doc2')">📷 Scansiona</button></label>
+    <div class="field"><label class="fl" for="oDocFile2">Foto o PDF del documento d'identità (2ª persona) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('doc','doc2')">${scLabel('', 'Carica il documento')}</button></label>
     <input id="oDocFile2" type="file" accept="image/*,application/pdf" onchange="onDocFile(this,'doc2')">
     <div class="hint" id="oDocFile2Hint">${docHint('doc2')}</div></div>
     ` : ''}
@@ -6834,6 +6928,9 @@ function ordControlla1(){
 function vOrdine2(){
   showDock(true); markNav('ordine');
   const f = state.ordine.fornitura;
+  /* nota 117: per le aziende il form della fornitura non parla di residenza */
+  const isAz = state.cliente === 'azienda';
+  const zAz = state.ordine.azienda || {};
   /* materie richieste = quelle delle BOLLETTE caricate + la materia dell'offerta
    scelta. Bolletta solo luce → la sezione gas non viene proprio chiesta, anche se
    all'inizio era stato selezionato "entrambi" (richiesta utente 06/11). */
@@ -6864,6 +6961,21 @@ function vOrdine2(){
       <div class="field"><label class="fl" for="ofProv">Provincia</label><input id="ofProv" value="${ordEsc(f.provincia)}" placeholder="Es. VI" oninput="state.ordine.fornitura.provincia=this.value.toUpperCase()"></div>
     </div>
 
+        ${isAz ? `
+    <div class="alert info" style="margin-top:4px">
+      <b>Sede legale della ditta:</b> ${ordEsc([zAz.sede, zAz.cap, zAz.comune, zAz.provincia].filter(Boolean).join(', ') || 'da completare nei dati ditta')}
+      <div class="hint">Per un'azienda non chiediamo la residenza: la fornitura è l'indirizzo dove arriva la luce/gas.</div>
+      <button class="btn btn-ghost" style="margin-top:8px;width:auto;padding:6px 12px;font-size:.82rem" onclick="ordCopiaSedeAz()">📍 La fornitura è nella sede legale: copia l'indirizzo</button>
+    </div>
+
+    <div class="field"><label class="fl">Indirizzo di fatturazione</label>
+      <div style="display:flex;gap:10px">
+        <button class="btn ${zAz.fattAlt ? 'btn-ghost' : 'btn-primary'}" onclick="ordFattSedeAz()">Sede legale</button>
+        <button class="btn ${zAz.fattAlt ? 'btn-primary' : 'btn-ghost'}" onclick="ordFattAltroAz()">Altro indirizzo</button>
+      </div>
+      ${zAz.fattAlt ? `<div class="field" style="margin-top:10px"><label class="fl">Indirizzo di fatturazione</label><input value="${ordEsc(zAz.fatturazione === 'si' ? '' : (zAz.fatturazione || ''))}" placeholder="Via ..., CAP, Comune" oninput="state.ordine.azienda.fatturazione=this.value"></div>` : ''}
+      <div class="hint">Lo chiede la check list del fornitore: se è la stessa sede legale non devi fare nulla.</div>
+    </div>` : `
     <div class="field"><label class="fl">Sei residente a questo indirizzo?</label>
       <div style="display:flex;gap:10px">
         <button class="btn ${f.residente==='si'?'btn-primary':'btn-ghost'}" onclick="state.ordine.fornitura.residente='si';render('ordine2')">Sì</button>
@@ -6872,7 +6984,7 @@ function vOrdine2(){
       ${f.residente==='no' ? `
       <div class="field" style="margin-top:10px"><label class="fl" for="ofComR">Comune di residenza</label><input id="ofComR" value="${ordEsc(f.comuneRes)}" oninput="state.ordine.fornitura.comuneRes=this.value"></div>
       <div class="field"><label class="fl" for="ofIndR">Indirizzo di residenza</label><input id="ofIndR" value="${ordEsc(f.indirizzoRes)}" oninput="state.ordine.fornitura.indirizzoRes=this.value"></div>` : ''}
-    </div>
+    </div>`}
 
     ${usaL ? `
     <div style="font-weight:700;margin:16px 0 8px">Dati fornitura Luce</div>
@@ -6898,12 +7010,12 @@ function vOrdine2(){
       <div class="field"><label class="fl" for="ofPdr">PDR (14 cifre)</label><input id="ofPdr" value="${ordEsc(f.pdr)}" placeholder="Es. 00123456789012" oninput="state.ordine.fornitura.pdr=this.value.replace(/[^0-9]/g,'')"></div>
       <div class="field"><label class="fl" for="ofMatricola">Matricola contatore gas</label><input id="ofMatricola" value="${ordEsc(f.matricola)}" placeholder="Se non la sai non importa" oninput="state.ordine.fornitura.matricola=this.value.toUpperCase()"></div>
     </div>
-    <div class="field"><label class="fl" for="ofTipoAbr">Tipo di abitazione (per il fornitore gas)</label>
+    ${isAz ? '' : `<div class="field"><label class="fl" for="ofTipoAbr">Tipo di abitazione (per il fornitore gas)</label>
       <select id="ofTipoAbr" onchange="state.ordine.fornitura.tipoAbitazione=this.value">
         <option value="">Seleziona...</option>
         <option value="CONDOMINIO" ${f.tipoAbitazione==='CONDOMINIO'?'selected':''}>In condominio (più di 6 unità abitative)</option>
         <option value="STABILE" ${f.tipoAbitazione==='STABILE'?'selected':''}>In stabile uni-plurifamiliare (massimo 6 unità)</option>
-      </select></div>
+      </select></div>`}
     <div class="field"><label class="fl">Per quali servizi usi il Gas?</label>
       <div style="display:flex;gap:8px">
         ${usiOpt.map(u=>`<label style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;gap:6px;padding:8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.9rem"><input type="checkbox" ${f.usiGas.indexOf(u[0])>-1?'checked':''} onchange="state.ordine.fornitura.usiGas=this.checked?state.ordine.fornitura.usiGas.concat('${u[0]}'):state.ordine.fornitura.usiGas.filter(function(x){return x!=='${u[0]}';})"><span>${u[1]}</span></label>`).join('')}
@@ -6929,8 +7041,10 @@ function ordControlla2(){
     || !!(state.analisi && state.analisi.gas);   /* sessione ripresa: i file non si salvano, l'analisi sì */
   if(!f.comune || !f.cap || !f.indirizzo || !f.civico){ ordErrore('oErr2','Comune, CAP, indirizzo e civico sono obbligatori.'); return; }
   if(!/^\d{5}$/.test(String(f.cap || '').trim())){ ordErrore('oErr2','Il CAP è di 5 cifre.'); return; }
-  if(!f.residente){ ordErrore('oErr2','Dimmi se vivi a questo indirizzo.'); return; }
-  if(f.residente === 'no' && (!f.comuneRes || !f.indirizzoRes)){ ordErrore('oErr2','Con residenza diversa servono comune e indirizzo di residenza.'); return; }
+  if(state.cliente !== 'azienda'){
+    if(!f.residente){ ordErrore('oErr2','Dimmi se vivi a questo indirizzo.'); return; }
+    if(f.residente === 'no' && (!f.comuneRes || !f.indirizzoRes)){ ordErrore('oErr2','Con residenza diversa servono comune e indirizzo di residenza.'); return; }
+  }
   if(usaL && !f.pod){ ordErrore('oErr2','POD obbligatorio per la richiesta sull\'offerta Luce.'); return; }
   if(usaL && !podValido(f.pod)){ ordErrore('oErr2','POD non valido: deve iniziare con "IT" e avere 14 o 15 caratteri alfanumerici.'); return; }
   if(usaL && !f.fornitoreLuce){ ordErrore('oErr2','Dimmi il fornitore luce attuale (è scritto in bolletta): serve per la richiesta.'); return; }
@@ -6938,7 +7052,7 @@ function ordControlla2(){
   if(usaG && f.pdr && !pdrValido(f.pdr)){ ordErrore('oErr2','Il PDR deve essere di 14 cifre.'); return; }
   if(usaG && !f.pdr){ ordErrore('oErr2','PDR obbligatorio per la richiesta sull\'offerta Gas.'); return; }
   if(usaG && !f.fornitoreGas){ ordErrore('oErr2','Dimmi il fornitore gas attuale (è scritto in bolletta): serve per la richiesta.'); return; }
-  if(usaG && !f.tipoAbitazione){ ordErrore('oErr2','Dimmi il tipo di abitazione (il fornitore lo chiede per il gas).'); return; }
+  if(usaG && state.cliente !== 'azienda' && !f.tipoAbitazione){ ordErrore('oErr2','Dimmi il tipo di abitazione (il fornitore lo chiede per il gas).'); return; }
   if(usaG && (!f.usiGas || !f.usiGas.length)){ ordErrore('oErr2','Segna per quali servizi usi il gas (cucina, acqua calda, riscaldamento): il fornitore lo chiede.'); return; }
   go('ordine3');
 }
@@ -6962,7 +7076,7 @@ function vOrdine3(){
     </div>
 
     ${p.modalita!=='BOLLETTINO' ? `
-    <div class="field"><label class="fl" for="oIBAN">IBAN <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('iban')">📷 Scansiona</button></label>
+    <div class="field"><label class="fl" for="oIBAN">IBAN <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri('iban')">${scLabel('', 'Carica il file')}</button></label>
       <input id="oIBAN" value="${ordEsc(p.iban)}" placeholder="Es. IT60X0542811101000000001234" oninput="state.ordine.pay.iban=this.value">
       <div class="hint">Il codice di controllo viene verificato in locale, prima dell'invio.</div></div>
 
@@ -7019,8 +7133,16 @@ function allineaJsonAlTesto(json, testo, stato){
   const righe = String(testo || '').split('\n');
   const tro = (rx) => { for(const r of righe){ const m = r.match(rx); if(m) return m; } return null; };
   const j = JSON.parse(JSON.stringify(json));
-  /* nota 87: snapshot completo dei dati usati da PDA/check-list */
-  window.__riepSnapshot = stato ? JSON.parse(JSON.stringify(stato)) : JSON.parse(JSON.stringify(state.ordine || {}));
+  /* nota 87: snapshot completo dei dati usati da PDA/check-list;
+     nota 121: lo snapshot e' quello che finisce in PDA e check list, quindi qui
+     ci vanno anche le correzioni fatte dal cliente nel testo del riepilogo */
+  const S = stato ? JSON.parse(JSON.stringify(stato)) : JSON.parse(JSON.stringify(state.ordine || {}));
+  S.intestatario = S.intestatario || {};
+  S.intestatario2 = S.intestatario2 || {};
+  S.fornitura = S.fornitura || {};
+  S.azienda = S.azienda || {};
+  S.pay = S.pay || {};
+  window.__riepSnapshot = S;
   const I = j.step1_intestatario || {}, F2 = j.step2_fornitura || {}, P = j.step3_fatturazione || {};
   let m;
   /* intestatario */
@@ -7069,6 +7191,70 @@ function allineaJsonAlTesto(json, testo, stato){
   if(m){ P['bolletta.modalita_pagamento'] = 'RID'; P['bolletta.iban'] = m[1].trim().toUpperCase(); P['bolletta.titolare_conto'] = /^sì$/i.test(m[2].trim()) ? '1' : '0'; }
   m = tro(/^PAGAMENTO: bollettino/);
   if(m) P['bolletta.modalita_pagamento'] = 'BOLLETTINO';
+  /* nota 121: le correzioni del testo tornano anche nello stato usato da PDA e
+     check list (prima restavano solo nell'email, la check list usava i dati vecchi) */
+  const si = S.intestatario, sf = S.fornitura, sp = S.pay, sa = S.azienda;
+  si.nome = I['intestatario.nome'];
+  si.cognome = I['intestatario.cognome'];
+  si.email = I['intestatario.email'];
+  si.telefono = I['intestatario.telefono'];
+  si.cf = I['intestatario.codice_fiscale'];
+  si.titolarita = I['dati_fornitura.titolarita_immobile'];
+  if(I['bolletta.tipo_mercato'] !== undefined) si.tipo_mercato = I['bolletta.tipo_mercato'];
+  if(I['intestatario2.nome'] !== undefined){
+    S.intestatario2.nome = I['intestatario2.nome'];
+    S.intestatario2.cognome = I['intestatario2.cognome'];
+    S.intestatario2.cf = I['intestatario2.codice_fiscale'];
+  }
+  sf.indirizzo = F2['indirizzo_fornitura.indirizzo'];
+  sf.civico = F2['indirizzo_fornitura.numero_civico'];
+  sf.comune = F2['indirizzo_fornitura.istat_autocomplete'];
+  sf.cap = F2['indirizzo_fornitura.cap'];
+  if(F2['dati_fornitura.indirizzo_diverso_fornitura'] !== undefined)
+    sf.residente = F2['dati_fornitura.indirizzo_diverso_fornitura'] === 0 ? 'si' : 'no';
+  if(F2['bolletta.pod'] !== undefined) sf.pod = F2['bolletta.pod'];
+  if(F2['bolletta.pdr'] !== undefined) sf.pdr = F2['bolletta.pdr'];
+  if(F2['dati_fornitura.attuale_fornitore_luce_autocomplete'] !== undefined) sf.fornitoreLuce = F2['dati_fornitura.attuale_fornitore_luce_autocomplete'];
+  if(F2['dati_fornitura.attuale_fornitore_gas_autocomplete'] !== undefined) sf.fornitoreGas = F2['dati_fornitura.attuale_fornitore_gas_autocomplete'];
+  if(F2['bolletta.potenza_impegnata']) sf.potenza = F2['bolletta.potenza_impegnata'];
+  if(F2['bolletta.livello_tensione']) sf.tensione = F2['bolletta.livello_tensione'];
+  if(P['bolletta.modalita_pagamento'] !== undefined){
+    sp.modalita = P['bolletta.modalita_pagamento'];
+    sp.iban = P['bolletta.iban'] || '';
+    sp.titolareConto = P['bolletta.titolare_conto'] || '';
+  }
+  /* azienda: righe del riepilogo business */
+  m = tro(/^Azienda:\s*(.+?)\s+—\s+P\.IVA\s*(.*)$/);
+  if(m){ sa.ragione = m[1].trim(); if(m[2].trim()) sa.piva = m[2].trim().replace(/\D/g, ''); }
+  m = tro(/^Legale rappresentante:\s*(.+)$/);
+  if(m){
+    const p = m[1].split('·').map(x => x.trim());
+    if(p[0]) sa.rapp = p[0];
+    if(p[1]) sa.rappCf = p[1].toUpperCase();
+  }
+  m = tro(/^Referente:\s*(.+)$/);
+  if(m){
+    const p = m[1].split('·').map(x => x.trim());
+    if(p[0]) sa.referente = p[0];
+    if(p[1]) sa.telefono = p[1];
+    if(p[2]) sa.email = p[2];
+  }
+  m = tro(/^ATECO:\s*([0-9.]+)\s*(?:—\s*(.+))?$/);
+  if(m){ sa.ateco = m[1].trim(); if(m[2]) sa.attivita = m[2].trim(); }
+  m = tro(/^PEC:\s*(.+)$/);
+  if(m) sa.pec = m[1].trim();
+  m = tro(/^Sede legale:\s*(.+)$/);
+  if(m){
+    const p = m[1].split(',').map(x => x.trim());
+    if(p[0]) sa.sede = p[0];
+    for(let k = 1; k < p.length; k++){
+      if(/^\d{5}$/.test(p[k])) sa.cap = p[k];
+      else if(/^[A-Z]{2}$/.test(p[k])) sa.provincia = p[k];
+      else if(p[k]) sa.comune = p[k];
+    }
+  }
+  m = tro(/^Fatturazione:\s*(.+)$/);
+  if(m) sa.fatturazione = /^sede legale$/i.test(m[1].trim()) ? 'si' : m[1].trim();
   return j;
 }
 function riepModifica(){
@@ -7097,6 +7283,8 @@ function riepModifica(){
   bt.textContent = '\u270f\ufe0f Modifica un dato';
 }
 function vOrdineRiep(){
+  /* nota 110: il link resta qui perché è il punto in cui uno capisce che può
+     completare su un altro dispositivo senza perdere nulla */
   showDock(true); markNav('ordine');
   const c = state.ordine.consenso;
   return `
@@ -8271,10 +8459,13 @@ async function compilaChecklist(opt){
   if(gasAtt) persisti.push('gas');
   /* AZIENDA (v5.6): si compila il blocco BUSINESS, non quello consumer */
   const az = state.ordine.azienda || {};
+  /* nota 117: la check list business vuole l'indirizzo completo di sede legale e
+     fatturazione; "si" = stessa sede legale, non un testo da stampare */
+  const sedeFull = [az.sede, [az.cap, az.comune, az.provincia].filter(Boolean).join(' ')].filter(Boolean).join(', ') || fornitura;
   const dati = state.cliente === 'azienda' ? {
     nome: az.ragione || '',
-    sede: az.sede || fornitura,
-    fatturazione: (az.fatturazione && az.fatturazione !== 'si') ? az.fatturazione : (az.sede || ''),
+    sede: sedeFull,
+    fatturazione: (az.fatturazione && az.fatturazione !== 'si') ? az.fatturazione : sedeFull,
     piva: az.piva || '',
     cf: az.cf || az.piva || '',
     cell: az.telefono || '',
@@ -9490,47 +9681,12 @@ function __ddmTessWorkerUrl(){
     });
   }
 
-  /* aiuto per campo: ? accanto ai campi difficili + tasto AI sui campi
-     derivabili, sempre aggiornato mentre il wizard cambia passo */
-  var osserva = new MutationObserver(function(){
-    document.querySelectorAll('.field').forEach(function(fg){
-      var inp = fg.querySelector('input, select');
-      if(!inp || !inp.id) return;
-      var lbl = fg.querySelector('.fl');
-      var nomeVera = lbl ? lbl.textContent.trim() : (ETICHETTE[inp.id] || '');
-      /* tasto ? (spiega) */
-      if(HELP_CAMPO[inp.id] && !fg.querySelector('.ai-help')){
-        var bt = document.createElement('button');
-        bt.type = 'button'; bt.className = 'ai-help'; bt.textContent = '?';
-        bt.title = nomeVera + ': chiedi all\'assistente';
-        bt.addEventListener('click', function(){
-          pronta(); p.classList.add('aperto');
-          var d = testoCampo(inp);
-          var q = HELP_CAMPO[inp.id] + ' Campo: ' + nomeVera + '. ' + 'Valore attuale: ' + d + '.';
-          inx.value = q; inx.focus();
-        });
-        if(lbl) lbl.appendChild(bt); else fg.appendChild(bt);
-      }
-      /* tasto AI (proposta con conferma) */
-      if(PROP_CAMPI[inp.id] && !fg.querySelector('.ai-prop')){
-        var bp = document.createElement('button');
-        bp.type = 'button'; bp.className = 'ai-prop'; bp.textContent = 'AI';
-        bp.title = nomeVera + ': AI propone un valore (con conferma)';
-        bp.addEventListener('click', function(){
-          if(String(inp.value || '').trim()){ alert('Il campo "' + nomeVera + '" è già compilato: cancellalo prima se vuoi una proposta.'); return; }
-          var pr2 = propostaCampo(inp.id);
-          if(!pr2){ alert('Niente da proporre ora per "' + nomeVera + '": servono più dati (es. CF compilato o consumi in analisi).'); return; }
-          if(pr2.ai){ pronta(); p.classList.add('aperto'); usaAiPerId(inp, inp.id, pr2); return; }
-          confermaEScrivi(inp, pr2);
-        });
-        if(lbl) lbl.appendChild(bp); else fg.appendChild(bp);
-      }
-    });
-  });
-
-  function start(){ pronta(); osserva.observe(document.body, { childList: true, subtree: true });
-    /* il bubble appforza sotto la possible banner: sindex alto */ }
+  /* nota 113: niente "?" e "AI" nel wizard. Il pannello si tiene pronto
+     perché lo usa la chat della scheda offerta (prima di aderire); se il cliente
+     ha un dubbio può anche prenotare la call. */
+  function start(){ try{ pronta(); }catch(e){} }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+
   /* API per il modulo wizard v5.1 (stesso canale proxy, stesso pannello) */
   window.DDMAI = {
     chiedi: function(mod, messaggi, sys){ return aiChiedi(mod, messaggi, sys); },
@@ -9855,6 +10011,15 @@ setTimeout(function(){
    Riusa Tesseract.js "ita" già incorporato (tesseractBrowser()).
    Nessuna nuova dipendenza. OCR interamente nel browser.
    ===================================================================== */
+/* nota 114: sui telefoni il bottone dice "con la tua fotocamera" */
+function scMobile(){
+  try { return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ''); } catch (e) { return false; }
+}
+function scLabel(extra, nomeDesktop){
+  /* nota 116: da PC la scansione non ha senso: si allega il file (anche PDF) */
+  return scMobile() ? ('📷 Scansiona' + (extra || '') + ' con la tua fotocamera') : ('📄 ' + (nomeDesktop || 'Carica il file'));
+}
+
 function scArea(d, w, h){
   /* d = Uint8ClampedArray RGBA. Rileva il foglio (più chiaro dello sfondo)
      su una griglia 48xN, restituisce il rettangolo in pixel + qualità 0..1 */
@@ -10072,6 +10237,135 @@ function scParseDoc(testo){
   return out;
 }
 
+/* ---------- VISURA CAMERALE: dati ditta ---------- */
+function scParseVisura(testo){
+  /* nota 115: schemi della VISURA CAMERALE ordinaria (oltre ai dati "a vista"):
+       "Indirizzo Sede   ISOLA VICENTINA (VI) VIA ROSSIONI 14 CAP 36033"
+       "Codice fiscale e n.iscr. al Registro Imprese" (valore a riga sotto)
+       "Partita IVA   03707260240" · "Codice ATECO   43.21.01"
+       "Attività esercitata ..." · "Domicilio digitale/PEC ..." */
+  var t = String(testo || '');
+  var out = { ragione: '', piva: '', cf: '', pec: '', ateco: '', attivita: '', sede: '', cap: '', comune: '', provincia: '', telefono: '', rapp: '' };
+  var righe = t.split(/\n+/).map(function (s) { return s.trim(); });
+  var i, j;
+
+  /* 1) ragione sociale: le righe dopo "VISURA ORDINARIA ..." */
+  var idx = -1;
+  for (i = 0; i < righe.length; i++) { if (/^VISURA\s+ORDINARIA/i.test(righe[i])) { idx = i; break; } }
+  if (idx >= 0) {
+    var pezzi = [];
+    for (j = idx + 1; j < righe.length && pezzi.length < 2; j++) {
+      var r = righe[j];
+      if (!r) continue;
+      if (/^(Il QR Code|QR Code|DATI ANAGRAFICI|Camera di Commercio|Registro Imprese|Indirizzo Sede)/i.test(r)) continue;
+      if (/^[A-Z0-9]{6,9}$/.test(r)) break;                    /* numero documento */
+      pezzi.push(r);
+      if (/\b(S\.?R\.?L\.?|S\.?P\.?A\.?|S\.?N\.?C\.?|S\.?A\.?S\.?|S\.?R\.?L\.?S\.?|S\.?C\.?A\.?R\.?L\.?|S\.?S\.?)\b/i.test(r)) break;
+      if (pezzi.length === 2 && !/^[A-ZÀÈÌÒÙ' ]{2,20}$/.test(pezzi[1])) { pezzi.pop(); break; }
+    }
+    var rag = pezzi.join(' ').replace(/\s+/g, ' ').trim();
+    if (rag.length > 3 && !/^(Il QR Code|DATI ANAGRAFICI)/i.test(rag)) out.ragione = rag;
+  }
+  if (!out.ragione) {
+    for (i = 0; i < righe.length && !out.ragione; i++) {
+      var rr = righe[i];
+      if (rr.length > 3 && rr.length < 60 && !/\d{5,}/.test(rr) &&
+          /\b(S\.?R\.?L\.?|S\.?P\.?A\.?|S\.?N\.?C\.?|S\.?A\.?S\.?|S\.?R\.?L\.?S\.?|S\.?C\.?A\.?R\.?L\.?|S\.?S\.?)\b/i.test(rr) &&
+          !/^(VISURA|DATI|Camera|Codice|Indirizzo|Partita)/i.test(rr)) out.ragione = rr.replace(/^(denominazione|ragione\s+sociale|ditta)\s*[:\-]?\s*/i, '').trim();
+    }
+  }
+
+  /* 2) sede: "COMUNE (PR)  VIA ... 14  CAP 36033" */
+  var sm = t.match(/Indirizzo Sede(?: legale)?\s+([\s\S]{2,90}?)\s*[(]([A-Z]{2})[)]\s*([\s\S]{2,90}?)\s*CAP\s*(\d{5})/i);
+  if (sm) {
+    out.comune = sm[1].replace(/\s+/g, ' ').trim(); out.provincia = sm[2].toUpperCase();
+    out.sede = sm[3].replace(/\s+/g, ' ').trim(); out.cap = sm[4];
+  } else {
+    var sm2 = t.match(/((?:Via|Piazza|Viale|Corso|Vicolo|Largo|Localit[àa]|Strada)\s+[^,\n]{2,45}\d{1,5}[^,\n]*),\s*(\d{5})\s+([^,\n()]{2,40}?)\s*[(]([A-Z]{2})[)]/i);
+    if (sm2) { out.sede = sm2[1].replace(/\s+/g, ' ').trim(); out.cap = sm2[2]; out.comune = sm2[3].trim(); out.provincia = sm2[4].toUpperCase(); }
+  }
+
+  /* 3) P.IVA, CF, ATECO, PEC, telefono */
+  var mp = t.match(/Partita IVA[:\s]+(\d{11})/i); if (mp) out.piva = mp[1];
+  var mc = t.match(/Codice fiscale e n\.?iscr\.? al\s*Registro Imprese\s*\n?\s*([A-Z0-9]{11,16})/i)
+    || t.match(/Codice fiscale[:\s]+([A-Z0-9]{11,16})/i);
+  if (mc) out.cf = mc[1].toUpperCase();
+  if (!out.cf) { var cf16 = t.match(/\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/); if (cf16) out.cf = cf16[0]; }
+  if (!out.cf && out.piva) out.cf = out.piva;
+  var ma = t.match(/Codice ATECO\s+(\d{2}\.\d{2}\.\d{1,2})/i) || t.match(/\b\d{2}\.\d{2}\.\d{1,2}\b/);
+  if (ma) out.ateco = ma[1] || ma[0];
+  var mpec = t.match(/Domicilio digitale\/PEC\s+(\S+@\S+)/i) || t.match(/[\w.\-+]+@[\w.\-]*pec[\w.\-]*/i) || t.match(/[\w.\-+]+@[\w.\-]+\.[a-z]{2,}/i);
+  if (mpec) out.pec = mpec[1] || mpec[0];
+  var mtel = t.match(/Telefono\s+([\d\s\-]{6,20})/i); if (mtel) out.telefono = mtel[1].trim();
+
+  /* 4) attività: da "Attività esercitata/prevalente" fino all'etichetta successiva */
+  /* 4b) attività: riga per riga (nelle visure il testo è su più colonne) */
+  var etichetteAtt = /^(Codice|Stato attivit|Data |Albi|Attivit[àa] |L'IMPRESA|Contratto|Addetti|Unità locali|Titolari|Capitale|Pratiche|Trasferimenti|Soci |Sindaci|Amministratori|Numero|Indirizzo|Partita|Registro|Forma giuridica)/i;
+  for (i = 0; i < righe.length && !out.attivita; i++) {
+    var mm = righe[i].match(/Attivit[àa]\s+(?:esercitata|prevalente)\s*[:\-]?\s*(.+)/i);
+    if (!mm) continue;
+    var pezzi = [mm[1]];
+    for (var k = i + 1; k < righe.length && pezzi.length < 4; k++) {
+      var nx = righe[k].trim();
+      if (!nx) break;
+      nx = nx.split(/\s+(?=(?:Codice|Stato attivit|Addetti|Capitale|Unità locali|Titolari|Pratiche|Trasferimenti|Soci|Sindaci|Amministratori|Albi|Contratto)\b)/i)[0].trim();
+      if (!nx || etichetteAtt.test(nx)) break;
+      pezzi.push(nx);
+    }
+    out.attivita = pezzi.join(' ').replace(/\s+/g, ' ').trim();
+  }
+  if (!out.attivita) {
+    var matt2 = t.match(/Attivit[àa]\s*[:\-]\s*([^\n]{3,120})/i);
+    if (matt2) out.attivita = matt2[1].replace(/\s+/g, ' ').trim();
+  }
+
+  /* 5) legale rappresentante / titolare */
+  /* il nome sta 1-2 righe sotto l'etichetta, che a volte va a capo */
+  var etichette = /^(Titolare di impresa|individuale|Presidente|Amministrazione|Amministratore|Amministratrice|Legale rappresentante)/i;
+  for (i = 0; i < righe.length && !out.rapp; i++) {
+    if (!etichette.test(righe[i])) continue;
+    var riga0 = righe[i].replace(etichette, '').replace(/\b(Consiglio|Amministrazione|Delegata|Delegato|Unico|Collegiale|Amministratori)\b/gi, '').replace(/\s+/g, ' ').trim();
+    if (/^[A-ZÀÈÌÒÙ][A-ZÀÈÌÒÙ'\(\)\s]{5,48}$/.test(riga0) && riga0.split(/\s+/).length >= 2) { out.rapp = riga0; continue; }
+    for (var k = i + 1; k < Math.min(righe.length, i + 3); k++) {
+      var cand = righe[k].trim();
+      if (!cand) continue;
+      if (/^[A-ZÀÈÌÒÙ][A-ZÀÈÌÒÙ'\(\)\s]{5,48}$/.test(cand) && cand.split(/\s+/).length >= 2) { out.rapp = cand; break; }
+      if (/^(Rappresentante|Data|Stato|Codice|Partita|Indirizzo)/i.test(cand)) break;
+    }
+  }
+
+  /* 5b) codice fiscale (e PEC) del rappresentante: nelle visure di capitale il
+        CF sta sotto il nome ("Nato a … il … / Codice fiscale: CSRGFR69D12L840J");
+        per l'impresa individuale il CF del titolare coincide con quello dell'azienda */
+  if (out.rapp) {
+    var righe2 = t.split(/\n+/);
+    for (i = 0; i < righe2.length && !out.rapp_cf; i++) {
+      if (righe2[i].indexOf(out.rapp) === -1) continue;
+      for (var k = i + 1; k < Math.min(righe2.length, i + 5); k++) {
+        var mcf = righe2[k].match(/Codice fiscale[:\s]+([A-Z0-9]{15,16})/i);
+        if (mcf) { out.rapp_cf = mcf[1].toUpperCase(); break; }
+        var mpec2 = righe2[k].match(/posta elettronica certificata[:\s]+(\S+@\S+)/i);
+        if (mpec2 && !out.rapp_pec) out.rapp_pec = mpec2[1];
+      }
+    }
+    if (!out.rapp_cf && /impresa individuale/i.test(t)) out.rapp_cf = out.cf;
+  }
+
+  /* 6) il nome del titolare a volte finisce nell'indirizzo (colonne PDF):
+        "…ISOLA VICENTINA (VI) VIA / DARIO / ROSSIONI 14 CAP 36033" */
+  if (out.rapp && out.sede) {
+    var tok = out.rapp.split(/\s+/).pop();
+    if (tok && tok.length > 2 && out.sede.indexOf(tok) > -1 && !/^(VIA|PIAZZA|VIALE|CORSO|STRADA|LARGO|VICOLO|LOCALITA)$/i.test(tok)) {
+      out.sede = out.sede.replace(new RegExp('\\b' + tok + '\\b'), '').replace(/\s+/g, ' ').trim();
+      if (out.ragione.indexOf(tok) === -1) out.ragione = (out.ragione + ' ' + tok).replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  /* 7) fallback: numeri generici */
+  if (!out.piva) { var p11 = t.match(/\b\d{11}\b/g) || []; if (p11.length) out.piva = p11[0]; }
+  return out;
+}
+
 /* ================= UI / CAMERA ================= */
 (function () {
   'use strict';
@@ -10087,6 +10381,9 @@ function scParseDoc(testo){
     bolletta: { t: 'Bolletta', i: '🧾', sub: 'inquadra la prima pagina',
       tips: '<b>Dove guardare:</b> prima pagina, in alto: <b>POD/PDR</b>, dati fornitura, potenza e consumi. Se la bolletta è di 2 facciate, inquadra anche il retro.',
       esempio: 'POD IT001E00000000 · POTENZA 3 kW · MERCATO TUTELA' },
+    visura: { t: 'Visura camerale', i: '📄', sub: 'inquadra la visura della ditta',
+      tips: '<b>Cosa serve:</b> la visura camerale (camera di commercio) o un certificato con <b>dati ditta, P.IVA e codice ATECO</b>. Teniamo il foglio intero, con il timbro in basso.',
+      esempio: 'DENOMINAZIONE ALFA SRL · P.IVA 02331960274 · ATECO 47.11.1' },
     testo: { t: 'Testo', i: '📄', sub: 'inquadra quello che ti serve',
       tips: '<b>Cosa fa:</b> legge il testo e te lo mostra: puoi copiarlo o correggerlo.',
       esempio: '' }
@@ -10117,7 +10414,7 @@ function scParseDoc(testo){
         '<button class="sc-btn" onclick="SCANNER.incolla()">📋 Incolla</button>' +
         '<button class="sc-btn primary" onclick="SCANNER.scatta()">📸 Scatta</button>' +
       '</div>' +
-      '<input id="scFile" type="file" accept="image/*" style="display:none">';
+      '<input id="scFile" type="file" accept="image/*,application/pdf,.pdf" style="display:none">';
     document.body.appendChild(d);
     var fi = $('scFile');
     if (fi) fi.addEventListener('change', function () {
@@ -10146,6 +10443,14 @@ function scParseDoc(testo){
     $('scBadge').textContent = 'inquadra il documento';
     var v = $('scVid');
     v.style.display = '';
+    if (!scMobile()) {
+      /* nota 116: su PC la fotocamera non c'è: si allega il file (PDF o foto) */
+      v.style.display = 'none';
+      var bn = $('scBadge');
+      if (bn) { bn.className = 'sc-badge'; bn.textContent = 'Scegli il file (PDF o foto): lo leggo qui'; }
+      setTimeout(function () { var fi = $('scFile'); if (fi) fi.click(); }, 200);
+      return;
+    }
     try {
       S.stream = await scCamera();
       v.srcObject = S.stream;
@@ -10227,6 +10532,39 @@ function scParseDoc(testo){
   }
 
   async function scFile(f) {
+    /* nota 116: la visura (e i documenti) spesso è un PDF: se ha il testo
+       incorporato lo leggo直接, senza OCR */
+    var isPdf = /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || '');
+    if (isPdf) {
+      try {
+        if (typeof testoPdfBrowser === 'function') {
+          const r = await testoPdfBrowser(f, null);
+          const tx = (r && r.text) || '';
+          if (tx.replace(/\s+/g, ' ').length > 80) {
+            scStopCamera();
+            scMostra(tx, null, 'pdf');
+            return;
+          }
+        }
+      } catch (e) { /* sotto: provo a rasterizzare e fare OCR */ }
+      try {
+        if (typeof pdfLibBrowser === 'function' && typeof pdfjsLib !== 'undefined') {
+          const buf = new Uint8Array(await f.arrayBuffer());
+          const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+          const page = await pdf.getPage(1);
+          const vp = page.getViewport({ scale: 2 });
+          const c = document.createElement('canvas');
+          c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+          await page.render({ canvasContext: ctx, viewport: vp }).promise;
+          scStopCamera();
+          const a = scArea(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+          await scElabora(c, a, 'pdf');
+          return;
+        }
+      } catch (e) { /* ultima spiaggia: il ramo immagine qui sotto */ }
+    }
     var url = URL.createObjectURL(f);
     var img = new Image();
     try {
@@ -10316,6 +10654,23 @@ function scParseDoc(testo){
       campi.push(['numero', 'Numero documento', d.numero, !!d.numero]);
       campi.push(['scadenza', 'Scadenza', d.scadenza, !!d.scadenza]);
       if (!d.cognome && !d.nome) pref.push('Documento non riconosciuto: compila i campi a mano');
+    } else if (cat === 'visura') {
+      var vz = scParseVisura(testo);
+      campi.push(['ragione', 'Ragione sociale', vz.ragione, !!vz.ragione]);
+      campi.push(['piva', 'Partita IVA', vz.piva, !!vz.piva]);
+      campi.push(['cf', 'Codice fiscale azienda', vz.cf || vz.piva, !!(vz.cf || vz.piva)]);
+      campi.push(['ateco', 'Codice ATECO', vz.ateco, !!vz.ateco]);
+      campi.push(['pec', 'PEC', vz.pec, false]);
+      campi.push(['sede', 'Indirizzo sede', vz.sede, !!vz.sede]);
+      campi.push(['cap', 'CAP', vz.cap, false]);
+      campi.push(['comune', 'Comune', vz.comune, false]);
+      campi.push(['provincia', 'Provincia', vz.provincia, false]);
+      campi.push(['attivita', 'Attività', vz.attivita, false]);
+      campi.push(['rapp', 'Legale rappresentante / titolare', vz.rapp, false]);
+      campi.push(['rappCf', 'Suo codice fiscale', vz.rapp_cf, false]);
+      if (!vz.piva && !vz.ragione) pref.push('Visura non riconosciuta: compila i campi a mano (bastano P.IVA e ATECO).');
+      else if (!vz.ateco) pref.push('⚠ Manca il <b>codice ATECO</b>: è obbligatorio, lo trovi sulla visura o lo ricaviamo noi.');
+      else if (!vz.pec) pref.push('PEC non trovata: non è obbligatoria, la aggiungiamo noi se serve.');
     } else if (cat === 'bolletta') {
       pref.push('Bolletta acquisita: ora la leggo con il flusso normale');
     } else {
@@ -10383,6 +10738,23 @@ function scParseDoc(testo){
       chiudi();
       try { render(VIEW); } catch (e) {}
       toast('Documento acquisito: controlla i campi nel riepilogo');
+    } else if (cat === 'visura') {
+      var az = state.ordine.azienda || (state.ordine.azienda = {});
+      const _v = (k) => { const s = scValore(k).trim(); if (s) az[k] = s; };
+      _v('ragione');
+      const _s = (k) => { const v = scValore(k).trim(); if (v) az[k] = v; };
+      _s('piva'); az.piva = String(az.piva || '').replace(/\D/g, '');
+      if (scValore('cf').trim()) az.cf = scValore('cf').trim().toUpperCase();
+      _s('ateco'); _s('pec'); _s('sede'); _s('cap'); _s('comune');
+      if (scValore('provincia').trim()) az.provincia = scValore('provincia').trim().toUpperCase();
+      _s('attivita'); _s('rapp'); _s('rappCf'); _s('telefono');
+      if (!az.pec && scValore('pec').trim()) az.pec = scValore('pec').trim();
+      if (!az.cf && az.piva) az.cf = az.piva;
+      state.ordine.aziendaManuale = false;
+      state.ordine.azStep = 1;   /* la visura ha già compilato la ditta */
+      chiudi();
+      try { render('ordine'); } catch (e) {}
+      toast('Visura letta: controlla i dati della ditta e continua');
     } else if (cat === 'bolletta') {
       var cv2 = ris.prep, f2 = null;
       try {
@@ -10423,7 +10795,8 @@ function scParseDoc(testo){
     var x = cv.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, 1000, 620);
     x.fillStyle = '#000'; x.font = 'bold 34px Courier New, monospace';
-    var righe = S.cat === 'iban' ? ['Coordinate bancarie', 'IBAN IT17 X0542 8111 0100 0000 0012 34']
+    var righe = S.cat === 'visura' ? ['VISURA CAMERALE', 'ALFA SRL', 'Partita IVA: 02331960274', 'Codice ATECO 47.11.1', 'Via Roma 12, 36100 Vicenza (VI)']
+      : S.cat === 'iban' ? ['Coordinate bancarie', 'IBAN IT17 X0542 8111 0100 0000 0012 34']
       : S.cat === 'doc' ? ['CARTA D\'IDENTITA', 'COGNOME ROSSI', 'NOME MARIO', 'N. CA00000000', 'SCADENZA 01/01/2030', 'C.F. RSSMRA80A01H501U']
       : ['BOLLETTA LUCE', 'POD IT001E00000000', 'POTENZA 3 kW'];
     for (var i = 0; i < righe.length; i++) x.fillText(righe[i], 50, 80 + i * 80);
@@ -10707,6 +11080,169 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
   });
 });
 else { scRiprendiDaLink().then(function (ok) { if (ok && typeof render === 'function') { try { render('offerte-view'); } catch (e) {} } });
+}
+</script>
+<style id="azCss">
+.az-step{display:flex;gap:8px;align-items:center;margin:0 0 12px}
+.az-step i{flex:1;height:6px;border-radius:99px;background:#e6ecf3;display:block}
+.az-step i.on{background:var(--primary)}
+.az-q{font-family:var(--font-display);font-weight:800;font-size:1.25rem;letter-spacing:-.02em;margin:2px 0 4px}
+.az-sub{font-size:.9rem;color:var(--muted);margin:0 0 14px;line-height:1.45}
+.az-actions{display:flex;gap:10px;margin-top:16px}
+.az-actions .btn{flex:1}
+.az-visura{border:1.5px dashed #b9c2d0;border-radius:14px;padding:14px;text-align:center;background:var(--card);margin-bottom:12px}
+.az-visura .big{font-size:2rem;line-height:1;margin-bottom:6px}
+.az-mini{background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem;margin:0 0 12px}
+</style>
+<script id="azJs">
+/* =====================================================================
+   v5.9 — WIZARD GUIDATO AZIENDA (micro-passi, come i privati)
+   Al posto del modulo unico: 6 schermate corte + visura con OCR.
+   I dati finiscono in state.ordine.azienda, che compilaChecklist() già usa.
+   ===================================================================== */
+function azPassi(){
+  return ['Visura', 'Ditta', 'Attività', 'Sede', 'Referente', 'Documento', 'Ripasso'];
+}
+function azStep(){
+  const n = Number(state.ordine.azStep || 0);
+  return Math.max(0, Math.min(azPassi().length - 1, n));
+}
+function azBarra(){
+  const tot = azPassi().length, cur = azStep();
+  let h = '<div class="az-step">';
+  for (let i = 0; i < tot; i++) h += '<i class="' + (i <= cur ? 'on' : '') + '"></i>';
+  return h + '</div>';
+}
+function azCampi(){
+  const z = state.ordine.azienda || (state.ordine.azienda = {});
+  const g = azStep();
+  const F = (k, lab, val, ph, extra) =>
+    '<div class="field"><label class="fl" for="az_' + k + '">' + lab + '</label>' +
+    '<input id="az_' + k + '" ' + (extra || '') + ' value="' + ordEsc(val == null ? '' : val) + '" placeholder="' + (ph || '') + '" oninput="state.ordine.azienda.' + k + '=this.value"></div>';
+  const FR = (a, b) => '<div class="field-row">' + a + b + '</div>';
+
+  if (g === 0) return '' +
+    '<div class="az-visura"><div class="big">📄</div>' +
+    '<div style="font-weight:800;margin-bottom:4px">Hai la visura della ditta?</div>' +
+    '<div style="font-size:.85rem;color:var(--muted);margin-bottom:10px">La inquadriamo e leggiamo noi ragione sociale, P.IVA, CF, PEC, sede e <b>codice ATECO</b>: tu controlli e confermi.</div>' +
+    '<button class="btn btn-primary" style="width:100%" onclick="SCANNER.apri(\'visura\')">' + scLabel(' la visura', 'Carica la visura') + '</button>' +
+    '<button class="btn btn-ghost" style="width:100%;margin-top:8px" onclick="state.ordine.aziendaManuale=false;azVai(1)">⌨️ La compilo a mano</button></div>' +
+    '<div class="az-mini">Non serve caricarla per forza: se preferisci, la compili in 6 schermate brevi. I dati mancanti li completiamo noi in ufficio (anche PEC e descrizione attività).</div>';
+
+  if (g === 1) return '' +
+    '<div class="az-q">Come si chiama la ditta?</div>' +
+    '<p class="az-sub">Ragione sociale esatta (come sulla visura), partita IVA e codice fiscale dell\'azienda.</p>' +
+    F('ragione', 'Ragione sociale', z.ragione, 'Es. ALFA SRL') +
+    FR(F('piva', 'Partita IVA (11 cifre)', z.piva, 'Es. 02331960274', 'inputmode=\"numeric\"'),
+       F('cf', 'Codice fiscale azienda', z.cf, 'Se coincide con la P.IVA lascia vuoto')) +
+    '<div class="hint">Sono sulla visura camerale, in alto: "Partita IVA" e "Codice fiscale".</div>';
+
+  if (g === 2) return '' +
+    '<div class="az-q">Che attività fa la ditta?</div>' +
+    '<p class="az-sub">Il <b>codice ATECO</b> è obbligatorio: lo trovi sulla visura (voce "Attività" o "Codice ATECO"). Serve al fornitore per intestare il contratto e per le agevolazioni.</p>' +
+    F('ateco', 'Codice ATECO *', z.ateco, 'Es. 47.11.1') +
+    F('attivita', 'Descrizione attività', z.attivita, 'Es. commercio al dettaglio') +
+    '<div class="hint">Formato: 2 cifre . 2 cifre . 1-2 cifre (es. 47.11.1, 01.11.1, 62.01.0). Se non lo trovi, lo ricaviamo noi dalla visura.</div>';
+
+  if (g === 3) return '' +
+    '<div class="az-q">Dove ha sede la ditta?</div>' +
+    '<p class="az-sub">Indirizzo della <b>sede legale</b> (non quella dove lavori, se è diversa).</p>' +
+    F('sede', 'Indirizzo (via/piazza e numero)', z.sede, 'Es. Via Roma 12') +
+    '<div class="row-3">' +
+    '<div class="field"><label class="fl" for=\"az_cap\">CAP</label><input id=\"az_cap\" inputmode=\"numeric\" value=\"' + ordEsc(z.cap || '') + '\" placeholder=\"36100\" oninput=\"state.ordine.azienda.cap=this.value\"></div>' +
+    '<div class="field"><label class="fl\" for=\"az_comune\">Comune</label><input id=\"az_comune\" value=\"' + ordEsc(z.comune || '') + '\" placeholder=\"Vicenza\" oninput=\"state.ordine.azienda.comune=this.value\"></div>' +
+    '<div class=\"field\"><label class=\"fl\" for=\"az_prov\">Prov.</label><input id=\"az_prov\" value=\"' + ordEsc(z.provincia || '') + '\" placeholder=\"VI\" oninput=\"state.ordine.azienda.provincia=this.value.toUpperCase()\"></div>' +
+    '</div>';
+
+  if (g === 4) return '' +
+    '<div class="az-q">Chi seguiamo in azienda?</div>' +
+    '<p class="az-sub">Il <b>legale rappresentante</b> (chi firma) e un <b>referente</b> a cui mandiamo check list e contratto.</p>' +
+    FR(F('rapp', 'Legale rappresentante', z.rapp, 'Mario Rossi'),
+       F('rappCf', 'Suo codice fiscale', z.rappCf, 'RSSMRA80A01H501U')) +
+    FR(F('referente', 'Referente', z.referente, 'Nome e cognome'),
+       F('telefono', 'Telefono', z.telefono, 'Es. 0444 123456', 'type=\"tel\"')) +
+    F('email', 'Email (check list e contratto)', z.email, 'nome@azienda.it', 'type=\"email\"') +
+    F('pec', 'PEC (se ce l\'ha)', z.pec, 'nome@pec.dominio.it') +
+    '<div class="hint">La PEC non è obbligatoria: se manca, il fornitore usa l\'email o il canale che preferisce.</div>';
+
+  if (g === 5) return '' +
+    '<div class="az-q">Documento del legale rappresentante</div>' +
+    '<p class="az-sub">La copia serve al fornitore per intestare il contratto: se ce l\'hai ora allega (consigliato), altrimenti la chiediamo in risposta all\'email con il contratto.</p>' +
+    docAzBlocco();
+
+  const z2 = z;
+  const di2 = state.ordine.intestatario || {};
+  const righe = [
+    ['Ditta', z2.ragione || '—'], ['P.IVA', z2.piva || '—'], ['CF azienda', z2.cf || z2.piva || '—'],
+    ['ATECO', z2.ateco || '—'], ['Attività', z2.attivita || '—'],
+    ['Sede', [z2.sede, z2.cap, z2.comune, z2.provincia].filter(Boolean).join(', ') || '—'],
+    ['Rappresentante', [z2.rapp, z2.rappCf].filter(Boolean).join(' · ') || '—'],
+    ['Referente', [z2.referente, z2.telefono].filter(Boolean).join(' · ') || '—'],
+    ['Email', z2.email || '—'], ['PEC', z2.pec || '—'],
+    ['Documento', [di2.docTipo, di2.docNumero].filter(Boolean).join(' ') || '—'],
+    ['Copia documento', docIdentitaMeta('doc') ? 'allegata (' + ordEsc(docIdentitaMeta('doc').nome || 'file') + ')' : 'da mandare in risposta all\'email'],
+  ];
+  let h = '<div class="az-q">Rileggiamo insieme?</div><p class="az-sub">Controlla: se qualcosa non torna, torna indietro e correggi.</p><div class="az-mini">';
+  for (const [k, v] of righe) h += '<div style="display:flex;gap:8px;padding:3px 0"><span style="min-width:120px;color:var(--muted)">' + k + '</span><b style="flex:1">' + ordEsc(String(v)) + '</b></div>';
+  return h + '</div>';
+}
+function azVai(n){
+  state.ordine.azStep = Math.max(0, Math.min(azPassi().length - 1, n));
+  render('ordine');
+  window.scrollTo(0, 0);
+}
+function azError(m){
+  const e = document.getElementById('azErr');
+  if (e) e.innerHTML = '<div class="alert error">' + m + '</div>';
+  return false;
+}
+function azProssimo(){
+  const z = state.ordine.azienda || (state.ordine.azienda = {});
+  const g = azStep();
+  if (g === 1) {
+    if (!z.ragione || !z.ragione.trim()) return azError('Scrivi la ragione sociale della ditta.');
+    const piva = String(z.piva || '').replace(/\D/g, '');
+    if (piva.length !== 11) return azError('La partita IVA ha 11 cifre: ricontrollala.');
+  }
+  if (g === 2) {
+    const at = String(z.ateco || '').trim();
+    if (!at) return azError('Il codice ATECO è obbligatorio: lo trovi sulla visura.');
+    if (!/^\d{2}\.\d{2}\.\d{1,2}$/.test(at)) return azError('ATECO non valido: formato 00.00.0 (es. 47.11.1).');
+  }
+  if (g === 3) {
+    if (!z.sede || !z.sede.trim()) return azError('Scrivi l\'indirizzo della sede legale.');
+    if (!z.comune || !z.comune.trim()) return azError('Manca il comune della sede.');
+  }
+  if (g === 4) {
+    if (!z.rapp || !z.rapp.trim()) return azError('Scrivi il nome del legale rappresentante.');
+    if (!z.telefono || !/^\+?[\d\s\-]{8,16}$/.test(String(z.telefono).trim())) return azError('Serve un telefono per la chiamata di conferma.');
+    if (!z.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(z.email)) return azError('Manca l\'email: lì arriva la check list.');
+    if (z.pec && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(z.pec)) return azError('La PEC non sembra valida.');
+  }
+  if (g === 5) {
+    const e = docAzErrore();
+    if (e) return azError(e);
+  }
+  if (g === 6) { if (!z.cf && z.piva) z.cf = z.piva; return go('ordine2'); }
+  azVai(g + 1);
+}
+function vGuidaAz(){
+  showDock(true); markNav('ordine');
+  const g = azStep();
+  const z = state.ordine.azienda || {};
+  return `
+  ${azBarra()}
+  <div class="anim card">
+    <div style="text-align:right;margin:-4px 0 6px"><button class="btn-link" onclick="go('offerte-view')">← tutte le offerte</button></div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px">Passo ${g + 1} di ${azPassi().length} — ${azPassi()[g]}</div>
+    ${azCampi()}
+    <div id="azErr"></div>
+    <div class="az-actions">
+      ${g > 0 ? '<button class="btn btn-ghost" onclick="azVai(' + (g - 1) + ')">Indietro</button>' : ''}
+      <button class="btn btn-primary" onclick="azProssimo()">${g === azPassi().length - 1 ? '✅ Conferma e prosegui' : 'Continua'}</button>
+    </div>
+    <div style="margin-top:10px;text-align:center"><button class="btn-link" onclick="state.ordine.aziendaManuale=true;vOrdineAzienda();render('ordine')">Preferisco un modulo unico</button></div>
+  </div>`;
 }
 </script>
 </body>
