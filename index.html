@@ -5173,7 +5173,7 @@ async function pickGiorno(i){
       const j = await r.json();
       const occ = new Set((j && j.occupate) || []);
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: !occ.has(s) }));
-      state.prenota.calSync = (j && j.calendario === 'si');   /* nota 99: ICS configurato? */
+      state.prenota.calSync = (j && Object.prototype.hasOwnProperty.call(j, 'calendario')) ? (j.calendario === 'si' ? true : null) : false;   /* nota 107: 'no' può voler dire 'nessun impegno' */
       dlog('Call: ' + occ.size + ' fasce già prenotate per il ' + ymd.split('-').reverse().join('/'));
     } catch(e){                                          // canale non raggiungibile: tutte libere (le confermi tu)
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: true }));
@@ -10608,7 +10608,7 @@ async function scInviaLink(){
     if (/^file:/i.test(location.href)) base = (typeof SITO_URL !== 'undefined' ? SITO_URL : base);
     var rif = (payload.__sessione && payload.__sessione.rif) || '';
     var rifv = (payload.__sessione && payload.__sessione.rifv) || '';
-    var body = JSON.stringify({ mode: 'salva_sessione', payload: payload, dest: mail, base: base, rif: rif, rifv: rifv });
+    var body = JSON.stringify({ mode: 'salva_sessione', payload: JSON.stringify(payload), dest: mail, base: base, rif: rif, rifv: rifv });
     var r = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: body });
     var j = null;
     try { j = await r.json(); } catch (e) {}
