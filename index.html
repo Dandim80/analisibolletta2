@@ -53,7 +53,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v5.9 (OCR, analisi, offerte, richiesta)</title>
+<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v6.0 (mobile: analisi essenziale)</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='1' y='1' width='22' height='22' rx='6' fill='%2310365f'/><text x='12' y='17' font-size='13' font-weight='bold' font-family='Arial' fill='%23ffffff' text-anchor='middle'>D</text></svg>">
 <meta name="theme-color" content="#F5F7FB">
 <style id="ddm-fonts-inline">
@@ -257,7 +257,27 @@ table.summary.oneLine td{white-space:nowrap}
 /* offerte su UNA colonna (v4.3): card sempre allineate, niente più sfalsamento
    luce/gas — il verso in cima ordina già le priorità */
 .offers-lg{display:grid;gap:16px;align-items:stretch}
-</style></head>
+</style><style id="v6-mobile">
+/* v6.0 - lettura da cellulare: meno testo, dettagli a richiesta */
+@media (max-width:700px){
+  body{font-size:15.5px}
+  .specs{grid-template-columns:1fr !important;gap:6px}
+  .specs > div:nth-child(3),.specs > div:nth-child(4),.specs > div:nth-child(5),
+  .specs > div:nth-child(6),.specs > div:nth-child(7){display:none}
+  body.v6-dettagli .specs > div:nth-child(3),
+  body.v6-dettagli .specs > div:nth-child(4),
+  body.v6-dettagli .specs > div:nth-child(5),
+  body.v6-dettagli .specs > div:nth-child(6),
+  body.v6-dettagli .specs > div:nth-child(7){display:block}
+  .alert{padding:9px 11px;font-size:.88rem;line-height:1.4}
+  .card{padding:12px;border-radius:12px}
+  .hint{display:none}
+  .btn{padding:10px 12px}
+  .v6-toggle{display:inline-flex}
+}
+.v6-toggle{display:none;align-items:center;gap:6px;background:#eef4fb;border:1px solid #cfd8e6;color:#0c5a9e;border-radius:9px;padding:7px 11px;font-size:.85rem;font-weight:700;cursor:pointer;margin:6px 0}
+</style>
+</head>
 <body>
 
 <div class="topbar"><div class="topbar-inner">
@@ -4289,6 +4309,7 @@ function avvisoContratto(p, materia){
 /* nota 126: avviso per i contatori che hanno consumi annui ma nessun prezzo nel
    periodo (bolletta a 0 consumi): il confronto usa il prezzo medio degli altri
    contatori, va detto al cliente (e il consulente lo rifà con la bolletta vera) */
+function v6Toggle(b){ var on = document.body.classList.toggle("v6-dettagli"); if(b) b.textContent = on ? "Nascondi dettagli" : "Mostra dettagli"; }
 function avvisoSenzaPrezzo(arr, unita, etichetta, prezzoMedio){
   if(!arr || !arr.length) return '';
   let tot = 0;
@@ -4330,6 +4351,8 @@ function stimaCorpo(){
   const a = state.analisi || {};
   const l = a.luce || {}, g = a.gas || {};
   const ind = a.indicativo ? (a.cliente || 'privato') : '';
+  /* nota 129: se il gas c'è ma nessuna offerta conviene, lo diciamo (prima spariva e basta) */
+  const gasNessuna = !!(g.consumo_anno) && !(typeof offerteCompatibili === 'function' && offerteCompatibili().list.some(function(o){ return o.gas && risparmioOfferta(o).gmax_imp > 0; }));
   const subTxt = ind === 'azienda'
     ? 'Stima preliminare sui consumi che hai inserito: se non tornano, li correggi nella richiesta.'
     : ind
@@ -4341,6 +4364,7 @@ function stimaCorpo(){
     ${(state.storia && state.storia.length) ? '<button class="btn-back-top" onclick="goBack()">← Torna indietro</button>' : ''}
   </div>
     <p class="sub">${subTxt}</p>
+    <button class="v6-toggle" onclick="v6Toggle(this)">Mostra dettagli</button>
     ${(state.analisi && state.analisi.motivo_nc) ? `<div class="alert info">⚠ ${state.analisi.motivo_nc}. I numeri qui sotto usano i consumi medi e il prezzo variabile di mercato (PUN/PSV del mese + spread): ricarica la bolletta vera per il confronto reale.</div>` : ''}
 
     ${(l.consumo_anno || g.consumo_anno) ? `<div class="${(l.consumo_anno && g.consumo_anno) ? 'dueCol' : ''}">
@@ -4374,6 +4398,7 @@ function stimaCorpo(){
           ${g.fisso_mese ? `<div>${evTh(g.evidenze, ['fisso_gas', 'fisso_luce'], 'quota fissa gas')}<b>${eurP(g.fisso_mese)}/mese</b><br>Quota fissa attuale</div>` : ''}
           ${g.scadenza_contratto ? `<div>${evTh(g.evidenze, ['scadenza_contratto'], 'scadenza gas')}<b>${dF(g.scadenza_contratto)}</b><br>Scadenza condizioni — gas</div>` : ''}
         </div>
+        ${gasNessuna ? '<div class="alert info">Per il gas non ci sono offerte più convenienti del tuo prezzo attuale (' + eurP(g.prezzo_attuale_smc) + '/Smc): il risparmio sarebbe nullo o negativo.</div>' : ''}
         ${avvisoContratto(g, 'gas')}
         ${avvisoSenzaPrezzo(g.senzaPrezzo, 'Smc', 'pdr', eurP(g.prezzo_attuale_smc))}
         ${(g.nonLetti || []).length ? `<div class="alert info">${g.nonLetti.length} bollette gas NON lette (${g.nonLetti.join(' · ')}): non sono nella stima. Se puoi, ricarica le bollette vere o recuperi i PDF digitali.</div>` : ''}
@@ -4387,7 +4412,7 @@ function stimaCorpo(){
     ${!(l.alla_cadenza || g.alla_cadenza) && (l.tipo_prezzo || g.tipo_prezzo || l.periodo || g.periodo) ? `<div class="alert info">Prezzo: <b>${[l.tipo_prezzo && 'luce ' + tipoPrezStr(l.tipo_prezzo), g.tipo_prezzo && 'gas ' + tipoPrezStr(g.tipo_prezzo)].filter(Boolean).join(' · ') || 'da confermare in call'}</b>${(l.periodo || g.periodo) ? ` · periodo fattura ${dF((l.periodo || g.periodo).dal)} – ${dF((l.periodo || g.periodo).al)}` : ''}.</div>` : ''}
     ${(l.ribassato || g.ribassato) ? `<div class="alert error">Il periodo fatturato della bolletta precede l'ultimo PUN/PSV mensile disponibile e il prezzo è variabile: la stima aggiorna il prezzo al mercato attuale e usa lo spread ${((l.spread_src || g.spread_src) === 'calcolato') ? 'REALE della tua bolletta (prezzo − dispacciamento − ' + ((l.ribassato && l.spread_src === 'calcolato') ? 'PUN' : 'PSV') + ' dei mesi coperti dalla bolletta (media PUN/PSV del periodo)' + ')'
       : ((l.spread_src || g.spread_src) === 'bolletta') ? 'della bolletta (trafiletto condizioni)' : 'fittizio 0,03/0,15 (non scritto nella bolletta)'}${l.ribassato ? ` · luce: ${eurP(l.prezzo_storico_kwh) || ''}/kWh → <b>${eurP(l.prezzo_attuale_kwh)}/kWh</b>` : ''}${g.ribassato ? ` · gas: ${eurP(g.prezzo_storico_smc) || ''}/Smc → <b>${eurP(g.prezzo_attuale_smc)}/Smc</b>` : ''}. Il consulente conferma in call.</div>` : ''}
-    <div class="alert info">Stima preliminare sulla parte energia: rete, trasporto e accise sono regolate da ARERA e invariate dal cambio gestore (si annullano nel confronto). Il totale con imposte include la stima dell'IVA (10% o 22%).</div>
+    <div class="alert info">Stima preliminare sulla parte energia: rete, trasporto e accise sono regolate da ARERA e invariate dal cambio gestore (si annullano nel confronto). IVA 10% o 22% stimata.</div>
     ${avvisoPrezzoStimato(l, g)}
     `;
 }
@@ -4419,8 +4444,11 @@ function offertePerGestore(){
        compagnia risultava "non per la tua fornitura" anche quando aveva una CTE
        adatta. Le fuori fascia restano mostrate solo se NON esiste alternativa. */
     const ordFascia = (a, b, campo) => (outFasci(a) ? 1 : 0) - (outFasci(b) ? 1 : 0) || (r(b)[campo] - r(a)[campo]);
-    const luceBest = usaL ? g.slice().sort((a, b) => ordFascia(a, b, 'lmax_imp'))[0] : null;
-    const gasBest = usaG ? g.slice().sort((a, b) => ordFascia(a, b, 'gmax_imp'))[0] : null;
+    /* nota 129: la best per materia si sceglie SOLO tra le offerte di quella materia:
+       prima il sort poteva prendere una scheda LUCE (gmax 0) al posto di una gas negativa,
+       e la card perdeva il prezzo gas */
+    const luceBest = usaL ? g.filter(function(o){ return !!o.luce; }).sort((a, b) => ordFascia(a, b, 'lmax_imp'))[0] : null;
+    const gasBest = usaG ? g.filter(function(o){ return !!o.gas; }).sort((a, b) => ordFascia(a, b, 'gmax_imp'))[0] : null;
     const primary = g.slice().sort((a, b) => ordFascia(a, b, 'lmax_imp') || (r(b).lmax_imp + r(b).gmax_imp) - (r(a).lmax_imp + r(a).gmax_imp))[0];
     /* nota 49: il nome della CTE da citare può venire dal nome della scheda
        (CTE singola) oppure dai campi cteLuce/cteGas della scheda combinata
@@ -7566,6 +7594,25 @@ function praticaStep(p, msg){ try{ var b = document.getElementById('praticaBar')
 async function ordGenera(){
   const c = state.ordine.consenso;
   if(!c.accetto){ ordErrore('oErrR','Serve l\'accettazione delle condizioni per generare la pratica.'); return; }
+  /* nota 136: l'email del cliente è OBBLIGATORIA (la pratica da firmare arriva via email) */
+  const emailCli = String((state.ordine.intestatario || {}).email || state.dati.email || '').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailCli)){
+    /* nota 136: porto l'utente al passo con l'email e lì mostro l'errore */
+    try{ go('ordine2'); }catch(e){}
+    setTimeout(function(){
+      try{ ordErrore('oErr2','Manca l\'email del cliente: la pratica da firmare arriva via email. Inseriscila qui.'); }catch(e){}
+      try{
+        var d = document.createElement('div');
+        d.className = 'alert error';
+        d.style.marginBottom = '10px';
+        d.textContent = 'Manca l\'email del cliente: la pratica da firmare arriva via email. Inseriscila qui.';
+        var r = document.getElementById('root');
+        if (r) r.insertBefore(d, r.firstChild);
+      }catch(e){}
+    }, 60);
+    try{ if(typeof toast === 'function') toast('Manca l\'email del cliente'); }catch(e){}
+    return;
+  }
   let txt = ordineRiepilogoTesto();
   window.__riepSnapshot = JSON.parse(JSON.stringify(state.ordine));   // nota 87: snapshot per PDA/check-list
   const jsonCorretto = (window.__riepTestoCorretto && window.__riepTestoCorretto.trim() && window.__riepTestoCorretto.trim() !== txt.trim())
@@ -7672,7 +7719,7 @@ async function ordGenera(){
   /* copia al cliente: modulo PDA compilato da stampare, firmare e rispedire
      (rispondendo alla mail allegando la foto del documento d'identità) */
   let inviataCliente = false;
-  const emailCliente = (state.ordine.intestatario || {}).email || state.dati.email;
+  const emailCliente = emailCli;
   /* nota 133: il cliente riceve SEMPRE una email (prima solo se c'era la PDA da firmare):
      con la PDA arriva il modulo da firmare, senza PDA arriva la copia della richiesta con
      il riepilogo e cosa succede adesso. */
@@ -7696,6 +7743,11 @@ async function ordGenera(){
       : ('[RICHIESTA] ' + (state.offertaScelta || 'controllo bollette') + ' — DDM Soluzioni');
     inviataCliente = await inviaViaGoogle(oggettoCliente, corpoCliente, emailCliente, { tipo: 'riepilogo', allegatiExtra: pdaB64 ? pdaAllegato : [] });
   }
+  /* nota 135: perché il cliente non ha ricevuto nulla? Distinguo i due casi:
+     manca l'email (campo vuoto nel wizard) oppure l'invio è fallito. */
+  const copiaErr = !emailCliente
+    ? 'Manca l\'email del cliente: la copia non è partita. Puoi aggiungerla tu e inoltrargli il modulo.'
+    : (!inviataCliente ? 'La copia al cliente non è partita (problema di rete o di invio): contatta l\'ufficio per l\'invio del modulo.' : '');
   praticaStep(100, 'Fatto');
   window.__ordInCorso = false;
   /* il JSON NON viene più scaricato (utente 05/11): la richiesta viaggia solo nell'email
@@ -7727,7 +7779,7 @@ async function ordGenera(){
         <div class="done-step"><span class="num">3</span><span class="txt"><b>Rispondi all'email</b> con ${pdaB64.length > 1 ? 'i moduli firmati' : 'il modulo firmato'}${(state.ordine.docIdentita || {}).doc ? '' : ' e la foto del documento d\'identità (se non l\'hai già allegata nel wizard)'}</span></div>
         <div class="done-step"><span class="num">4</span><span class="txt">Noi li giriamo al gestore e l'ufficio dell'azienda convenzionata ti conferma l'attivazione</span></div>
       </div>
-      ${inviataCliente ? '' : '<div class="alert error">La copia al cliente non è partita: contatta l\'ufficio per l\'invio del modulo.</div>'}
+      ${copiaErr ? '<div class="alert error">' + copiaErr + '</div>' : ''}
       ` : `
       <p class="sub" style="margin-bottom:0">La richiesta è arrivata all'ufficio con i dati e le bollette allegate: prepariamo il contratto col gestore e ti arriva da firmare o confermare via email.</p>
       ${pdaErr ? '<div class="hint" style="margin-top:8px">Modulo non allegato automaticamente — motivo: ' + ordEsc(pdaErr) + '</div>' : ''}
