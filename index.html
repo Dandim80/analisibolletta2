@@ -9637,6 +9637,22 @@ window.addEventListener('beforeunload', salvaStato);
 window.addEventListener('pagehide', salvaStato);
 window.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') salvaStato(); });
 
+/* nota 130: se il link viene aperto DENTRO l'app di posta (Gmail iOS, Samsung Email,
+   Outlook, WebView Android) lo diciamo: il sito non può aprire Chrome/Safari da solo,
+   ma l'utente può farlo dal menu del telefono. */
+function avvisoBrowserPosta(){
+  try{
+    var ua = navigator.userAgent || '';
+    if(!/GSA\/|Gmail|SamsungEmail|Outlook|(^|[;\s])wv(\)|[;\s])/i.test(ua)) return;
+    if(sessionStorage.getItem('ddm_inapp_ok')) return;
+    var d = document.createElement('div');
+    d.style.cssText = 'position:sticky;top:0;z-index:70;background:#fff4d6;border-bottom:1px solid #f0d089;color:#5a4300;font-size:.82rem;padding:8px 12px;display:flex;gap:8px;align-items:center';
+    d.innerHTML = '<span>Apri questo link nel <b>browser</b> (Chrome o Safari): tocca il menu del telefono e scegli "Apri in Chrome" / "Apri in Safari".</span>' +
+      '<button onclick="this.parentNode.remove();try{sessionStorage.setItem(\'ddm_inapp_ok\',\'1\')}catch(e){}" style="margin-left:auto;border:1px solid #d9bf7a;background:#fff;border-radius:8px;padding:4px 10px;font-size:.8rem;cursor:pointer">Chiudi</button>';
+    document.body.insertBefore(d, document.body.firstChild);
+  }catch(e){}
+}
+try{ avvisoBrowserPosta(); }catch(e){}
 /* Inizializzazione */
 const ripresaT0 = riprendiStato();   // sessione già salvata: riparte DIRETTO dalle offerte
 render(ripresaT0 ? 'offerte-view' : 'home');
@@ -10856,9 +10872,22 @@ function scParseVisura(testo){
           var ib = scParseIBAN(testo);
           if (ib.ok && ib.iban) {
             var b = $('scBadge');
-            if (b) { b.className = 'sc-badge ok'; b.textContent = '✓ IBAN inquadrato: compilo…'; }
-            S.ocrLast = Date.now() + 3000;   /* non ricominciare subito */
-            setTimeout(function () { try { scatta(); } catch (e) {} }, 300);
+            if (b) { b.className = 'sc-badge ok'; b.textContent = '✓ IBAN ' + ib.iban + ' — compilato'; }
+            /* nota 131: la lettura LIVE scrive SUBITO il campo (prima bisognava rifare la foto
+               e confermare: l'utente vedeva solo l'anteprima senza il valore nel form) */
+            try {
+              state.ordine.pay.iban = ib.iban;
+              var o = document.getElementById('oIBAN'); if (o) o.value = ib.iban;
+              var o2 = document.getElementById('oIBAN2'); if (o2) o2.value = ib.iban;
+              try { salvaStato(); } catch (e) {}
+            } catch (e) {}
+            S.ocrLast = Date.now() + 60000;   /* non ricominciare */
+            setTimeout(function () {
+              try { chiudi(); } catch (e) {}
+              try { render(VIEW); } catch (e) {}
+              try { if (typeof toast === 'function') toast('IBAN compilato: controllalo e conferma'); } catch (e) {}
+            }, 900);
+            return;
           }
         }
       }
