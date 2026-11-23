@@ -7562,6 +7562,7 @@ function vOrdineRiep(){
   </div>`;
 }
 
+function praticaStep(p, msg){ try{ var b = document.getElementById('praticaBar'); if(b) b.style.width = p + '%'; var t = document.getElementById('praticaMsg'); if(t && msg) t.textContent = msg; }catch(e){} }
 async function ordGenera(){
   const c = state.ordine.consenso;
   if(!c.accetto){ ordErrore('oErrR','Serve l\'accettazione delle condizioni per generare la pratica.'); return; }
@@ -7596,7 +7597,16 @@ async function ordGenera(){
      resto. Il cliente NON riceve moduli da firmare. */
   let ordChecklist = false;
   const allegUfficio = [];
-  root.innerHTML = `<div class="anim card" style="text-align:center"><div class="spinner" style="margin:0 auto"></div><p class="sub" style="margin-top:10px">Preparo la pratica e il modulo PDA compilato…</p></div>`;
+  /* nota 132: barra di avanzamento (il cliente non deve chiudere a metà) */
+  root.innerHTML = `<div class="anim card" style="text-align:center">`+
+    `<div class="spinner" style="margin:0 auto"></div>`+
+    `<p class="sub" id="praticaMsg" style="margin-top:10px">Preparo la pratica e il modulo PDA compilato…</p>`+
+    `<div style="height:10px;background:#e8eef6;border-radius:99px;overflow:hidden;margin:14px auto;max-width:420px"><div id="praticaBar" style="height:100%;width:5%;background:linear-gradient(90deg,#0c5a9e,#10365f);transition:width .3s"></div></div>`+
+    `<p class="muted" style="font-size:.85rem">Non chiudere questa pagina: ci vogliono pochi secondi.</p>`+
+    `</div>`;
+  window.__ordInCorso = true;
+  /* nota 132: se qualcosa si pianta, dopo 90 s la pagina torna chiudibile */
+  setTimeout(function(){ if(window.__ordInCorso){ window.__ordInCorso = false; } }, 90000);
   const cog = (json.step1_intestatario['intestatario.cognome'] || 'cliente').toLowerCase().replace(/\s/g,'-');
   try{
     if(state.ordine.dual && state.ordine.intestatario2){
@@ -7626,6 +7636,7 @@ async function ordGenera(){
     }
   }
   catch(e){ pdaB64 = null; pdaErr = e.message || 'compilazione PDA non riuscita'; console.log('PDA skip:', pdaErr); }
+  praticaStep(55, 'Modulo PDA pronto: aggiungo la CTE e la privacy');
   /* l'informativa privacy compilata: nel canale cartaceo va FUSA in coda al modulo
      (una sola per cliente); nel canale checklist va da sola all'ufficio */
   let privacyOk = false;
@@ -7638,6 +7649,7 @@ async function ordGenera(){
       privacyOk = true;
     }
   } catch(e){ console.log('Privacy non allegata: la pratica parte lo stesso (' + (e.message || e) + ')'); }
+  praticaStep(70, 'Informativa privacy aggiunta');
   /* la CTE selezionata va all'ufficio insieme alla checklist: la useranno per la
      PDA digitale con le condizioni giuste (canale watcher → archivio → incorporato) */
   try{
@@ -7646,6 +7658,7 @@ async function ordGenera(){
       allegUfficio.push({ nome: 'CTE-' + String(state.offertaSceltaCte).replace(/\.pdf$/i, ''), mime: 'application/pdf', base64: __estB64(new Uint8Array(u8)) });
     }
   } catch(e){ console.log('CTE non allegata (' + String(e.message || e).slice(0, 60) + ')'); }
+  praticaStep(80, 'CTE allegata: invio la richiesta');
   const pdaAllegato = (ordChecklist ? allegUfficio : (pdaB64 || []));
   /* doc d'identità caricato nel wizard (09/11): SOLO all'ufficio —
      il cliente non si ritrova la propria foto in allegato */
@@ -7653,22 +7666,38 @@ async function ordGenera(){
   try{ docAlleg = await docIdentitaAllegati(); } catch(e){ docAlleg = []; }
   try{ docAlleg = docAlleg.concat(await bolletteAllegati()); } catch(e){}   /* nota 78: bollette caricate nel wizard */
 
-  const inviata = await inviaViaGoogle(oggetto, txt + '\n\nJSON:\n' + jsonStr.slice(0, 8000), null, { tipo: 'richiesta_attivazione', allegatiExtra: pdaAllegato.concat(docAlleg) });
+  praticaStep(88, 'Invio la richiesta all\'ufficio');
+  const inviata = await inviaViaGoogle(oggetto, txt, null, { tipo: 'richiesta_attivazione', allegatiExtra: pdaAllegato.concat(docAlleg) });
+  praticaStep(94, inviata ? 'Richiesta inviata: preparo l\'email al cliente' : 'Richiesta non inviata');
   /* copia al cliente: modulo PDA compilato da stampare, firmare e rispedire
      (rispondendo alla mail allegando la foto del documento d'identità) */
   let inviataCliente = false;
   const emailCliente = (state.ordine.intestatario || {}).email || state.dati.email;
-  if(inviata && pdaB64 && emailCliente){
-    const corpoCliente = 'Ciao,\n\n'
+  /* nota 133: il cliente riceve SEMPRE una email (prima solo se c'era la PDA da firmare):
+     con la PDA arriva il modulo da firmare, senza PDA arriva la copia della richiesta con
+     il riepilogo e cosa succede adesso. */
+  if(inviata && emailCliente){
+    const corpoCliente = pdaB64
+      ? ('Ciao,\n\n'
       + 'ecco i dati già messi nel modulo di richiesta del gestore ' + (state.offertaScelta || '') + ': trovi ' + (pdaB64.length > 1 ? 'i 2 PDF compilati in allegato (uno per la luce, uno per il gas)' : 'il PDF compilato in allegato') + '.\n\n'
       + '1) Stampalo' + (pdaB64.length > 1 ? ' entrambi' : '') + (privacyOk ? ' (l\'ultima pagina è l\'informativa privacy già compilata: firmala pure tu)' : '') + '\n'
       + '2) Firma' + (pdaNota ? ' ' + pdaNota : ' in pagina 3 dove c\'è scritto "Firma del Cliente"') + (state.ordine.dual ? ' — per il modulo luce firma ' + (state.ordine.intestatarioBolletta.luce || '') + ', per il modulo gas firma ' + (state.ordine.intestatarioBolletta.gas || '') : '') + (pdaNota ? '' : ' (e in pagina 2 il titolare del conto, se è un altro)') + '\n'
       + '3) Rispondi a QUESTA email allegando ' + ((state.ordine.docIdentita || {}).doc ? '' : 'il documento d\'identità e ') + 'il' + (pdaB64.length > 1 ? 'i 2 moduli' : 'l modulo') + ' firmat' + (pdaB64.length > 1 ? 'i' : 'o') + '\n\n'
       + (manUff.length ? '\n\n\u26a0\ufe0f Per completare la pratica ci serve anche: ' + manUff.join(', ') + '. Rispondi a QUESTA email allegando ci\u00f2 che manca.\n\n' : '')
       + 'Se qualcosa non torna in linea, ci sentiamo in call o rispondendo a questa email.\n\n'
-      + ppRigaEmail();
-    inviataCliente = await inviaViaGoogle('[FIRMA] Modulo di richiesta compilato — ' + (state.offertaScelta || ''), corpoCliente, emailCliente, { tipo: 'riepilogo', allegatiExtra: pdaAllegato });
+      + ppRigaEmail())
+      : ('Ciao,\n\n'
+      + 'abbiamo ricevuto la tua richiesta per ' + (state.offertaScelta || 'il controllo bollette') + ': i dati sono già arrivati all\'ufficio, che prepara il contratto con il gestore.\n\n'
+      + 'Riepilogo di quello che hai inviato:\n' + String(txt).slice(0, 4000) + '\n\n'
+      + 'Non devi fare altro adesso: ti scriviamo noi con il modulo da firmare o da confermare.\n\n'
+      + ppRigaEmail());
+    const oggettoCliente = pdaB64
+      ? ('[FIRMA] Modulo di richiesta compilato — ' + (state.offertaScelta || ''))
+      : ('[RICHIESTA] ' + (state.offertaScelta || 'controllo bollette') + ' — DDM Soluzioni');
+    inviataCliente = await inviaViaGoogle(oggettoCliente, corpoCliente, emailCliente, { tipo: 'riepilogo', allegatiExtra: pdaB64 ? pdaAllegato : [] });
   }
+  praticaStep(100, 'Fatto');
+  window.__ordInCorso = false;
   /* il JSON NON viene più scaricato (utente 05/11): la richiesta viaggia solo nell'email
      all'ufficio, con il PDA compilato allegato quando il gestore lo supporta */
   const manDone = mancanzeFinalizzazione();
@@ -9633,6 +9662,7 @@ function ricominciaTest(){
   showDock(false);
   go('home');
 }
+window.addEventListener('beforeunload', function(e){ if(window.__ordInCorso){ e.preventDefault(); e.returnValue = ''; return ''; } });
 window.addEventListener('beforeunload', salvaStato);
 window.addEventListener('pagehide', salvaStato);
 window.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'hidden') salvaStato(); });
