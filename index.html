@@ -53,7 +53,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v6.0 (mobile: analisi essenziale)</title>
+<title>DDM Soluzioni — Luce e Gas ALL-IN-ONE v6.1 (mobile + AI di soccorso)</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='1' y='1' width='22' height='22' rx='6' fill='%2310365f'/><text x='12' y='17' font-size='13' font-weight='bold' font-family='Arial' fill='%23ffffff' text-anchor='middle'>D</text></svg>">
 <meta name="theme-color" content="#F5F7FB">
 <style id="ddm-fonts-inline">
@@ -276,7 +276,16 @@ table.summary.oneLine td{white-space:nowrap}
   .v6-toggle{display:inline-flex}
 }
 .v6-toggle{display:none;align-items:center;gap:6px;background:#eef4fb;border:1px solid #cfd8e6;color:#0c5a9e;border-radius:9px;padding:7px 11px;font-size:.85rem;font-weight:700;cursor:pointer;margin:6px 0}
-</style>
+
+/* nota 146: su cellulare i due riquadri (luce+gas) devono stare insieme nella pagina:
+   metà altezza, tutta larghezza, senza la riga "trascina qui" (da mobile non si trascina) */
+@media(max-width:700px){
+  .dropzone{padding:12px 10px}
+  .dropzone .icon{font-size:1.35rem}
+  .dropzone strong{display:inline;margin:0;font-size:.95rem}
+  .dropzone span{display:none}
+  #upErr + .alert.info{display:none}
+}</style>
 </head>
 <body>
 
@@ -652,7 +661,7 @@ function vHome(){
   return `
   <div class="anim" style="text-align:center;padding:36px 0">
     <div style="font-size:3.4rem;margin-bottom:14px;letter-spacing:.15em">⚡<span style="font-size:.72em">🔥</span></div>
-    <h1 class="title">In 3 click scopri quanto puoi risparmiare con le migliori offerte selezionate per te.</h1>
+    <h1 class="title">In 3 click scopri quanto puoi risparmiare</h1>
     <p class="sub">Gratis, senza impegno — e con un consulente vero se vuoi un parere in più.</p>
     <div class="card" style="text-align:left">
       <button class="btn btn-primary" onclick="clearSession(); go('test')">Inizia ora — è gratis</button>
@@ -868,8 +877,8 @@ if(!best || sc < best.sc) best = { sc, dom, o, np: np2 };
       for(const o of [...e.luce, ...e.gas]){
         const v = o.vincolo;
         if(!v || !(v.penale || v.mesi || v.fino)) continue;
-        if(!vin) vin = { mesi: v.mesi || 0, fino: v.fino || '', penale: !!v.penale, garanzia_mesi: v.garanzia_mesi || 0, garanzia: !!v.garanzia };
-        if((v.mesi || 0) > (vin.mesi || 0)) vin.mesi = v.mesi;
+        if(!vin) vin = { mesi: v.mesi || 0, fino: v.fino || '', penale: !!v.penale, garanzia_mesi: v.garanzia_mesi || 0, garanzia: !!v.garanzia, penale_testo: v.penale_testo || '', penale_tipo: v.penale_tipo || '', penale_eur: v.penale_eur || 0 };
+        if((v.mesi || 0) > (vin.mesi || 0)) { vin.mesi = v.mesi; if(v.penale_testo){ vin.penale_testo = v.penale_testo; vin.penale_tipo = v.penale_tipo || ''; vin.penale_eur = v.penale_eur || 0; } }
         if((v.garanzia_mesi || 0) > (vin.garanzia_mesi || 0)) vin.garanzia_mesi = v.garanzia_mesi;
         if(v.fino && (!vin.fino || v.fino > vin.fino)) vin.fino = v.fino;
         vin.penale = vin.penale || !!v.penale;
@@ -4609,6 +4618,14 @@ function notaVincoloCard(o){
   if(mesiGar) garz = 'prezzo fisso e commercializzazione invariabili per ' + mesiGar + ' mesi dalla data di attivazione.';
   else garz = (ver.find(x => x.garanzia) || {}).garanzia || '';
   if(garz) righe.push('🔒 Prezzo garantito: ' + esc(garz));
+  /* nota 145: testo integrale della clausola penale/oneri di recesso (dal watcher) */
+  const penTesto = String((v && v.penale_testo) || '').trim();
+  if(penTesto){
+    const tipo = ({ una_tantum: 'una tantum', mese: 'al mese', tabella: 'a tabella', formula: 'a formula', da_verificare: 'da verificare' })[(v && v.penale_tipo) || ''] || '';
+    const breve = penTesto.length > 190 ? penTesto.slice(0, 190).replace(/\s+\S*$/, '') + '…' : penTesto;
+    righe.push('⚠️ <b>Penale / oneri di recesso</b>' + (tipo ? ' (' + tipo + ')' : '') + ' — se esci prima della scadenza: ' + esc(breve) +
+      (penTesto.length > 190 ? '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:.78rem">leggi il testo della CTE</summary><div style="margin-top:4px;color:var(--muted)">' + esc(penTesto) + '</div></details>' : ''));
+  }
   const sconti = ver.filter(x => x.sconti);
   if(sconti.length === 1) righe.push('🎁 ' + esc(sconti[0].sconti));
   else if(sconti.length > 1) righe.push('🎁 Luce — ' + esc(sconti[0].sconti) + '<br>🎁 Gas — ' + esc(sconti[1].sconti));
@@ -11711,6 +11728,95 @@ function vGuidaAz(){
     <div style="margin-top:10px;text-align:center"><button class="btn-link" onclick="state.ordine.aziendaManuale=true;vOrdineAzienda();render('ordine')">Preferisco un modulo unico</button></div>
   </div>`;
 }
+</script>
+<script id="AI_BOLLETTA_V61">
+(function(){
+  if(window.__AI_BOLLETTA_V61__) return;
+  window.__AI_BOLLETTA_V61__ = true;
+  var CHIAVE = 'ddm-ai-bolletta-v1';
+  function leggi(){ try{ var j = JSON.parse(localStorage.getItem(CHIAVE)||'{}'); return (j && typeof j === 'object') ? j : {}; }catch(e){ return {}; } }
+  function salva(o){
+    try{
+      var k = Object.keys(o);
+      if(k.length > 120){ k.sort(function(a,b){ return (o[b].t||0)-(o[a].t||0); }).slice(0,60).forEach(function(x){ delete o[x]; }); }
+      localStorage.setItem(CHIAVE, JSON.stringify(o));
+    }catch(e){}
+  }
+  function chiave(t){
+    var h = 5381, s = String(t||'');
+    for(var i=0;i<s.length;i++) h = ((h<<5)+h+s.charCodeAt(i))|0;
+    return 'b' + (h>>>0).toString(36) + '-' + s.length;
+  }
+  function manca(d){
+    return {
+      prezzo_luce: !(d.attuale_kwh > 0), prezzo_gas: !(d.attuale_smc > 0),
+      potenza: !(d.potenza > 0), consumo_luce: !(d.kwh_anno > 0), consumo_gas: !(d.smc_anno > 0),
+      quota_luce: !(d.fisso_luce > 0), quota_gas: !(d.fisso_gas > 0)
+    };
+  }
+  function sistema(testo, m){
+    var righe = String(testo||'').split(/\r?\n/).filter(function(x){ return x.trim(); }).slice(0, 260);
+    return 'Sei un estrattore di dati da bollette italiane di luce e gas. Dal testo ricava SOLO i campi richiesti e ' +
+      'rispondi con JSON valido, senza testo intorno. Se un dato non è presente metti null (non inventare). ' +
+      'Campi: prezzo_luce (EUR/kWh, spesa per la vendita), prezzo_gas (EUR/Smc), potenza_kW (potenza impegnata), ' +
+      'consumo_luce_kwh_anno, consumo_gas_smc_anno, quota_luce_eur_mese, quota_gas_eur_mese, tipo_prezzo ("fisso"|"variabile"). ' +
+      'Richiesto: ' + JSON.stringify(m) + '\n--- TESTO BOLLETTA ---\n' + righe.join('\n');
+  }
+  async function chiedi(testo){
+    var url = (typeof GOOGLE_SCRIPT_URL !== 'undefined' && GOOGLE_SCRIPT_URL) ? GOOGLE_SCRIPT_URL : (window.GOOGLE_SCRIPT_URL || '');
+    if(!url) throw new Error('AI non configurata');
+    var r = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({ mode:'ai', modello:'openrouter/free', session:'ddm-ai-bolletta', messaggi:[{ role:'user', content: sistema(testo, manca(testo)) }] }) });
+    var t = await r.text();
+    var j = null; try{ j = JSON.parse(t); }catch(e){}
+    if(!j || !j.ok) throw new Error(String((j && (j.error||j.testo)) || 'AI non disponibile').slice(0,120));
+    var out = j.testo || j.risposta || '';
+    var mm = out.match(/\{[\s\S]*\}/);
+    return mm ? JSON.parse(mm[0]) : null;
+  }
+  window.aiCompletaBolletta = async function(testo, d, forza){
+    try{
+      if(!testo || !d) return d;
+      var k = chiave(testo), cache = leggi(), hit = cache[k];
+      var m = manca(d);
+      if(!hit || forza){
+        if(!m.prezzo_luce && !m.prezzo_gas && d.potenza > 0 && !forza) return d;
+        hit = (await chiedi(testo)) || {};
+        hit.t = Date.now(); cache[k] = hit; salva(cache);
+      }
+      if(hit.prezzo_luce > 0 && !(d.attuale_kwh > 0)) d.attuale_kwh = hit.prezzo_luce;
+      if(hit.prezzo_gas > 0 && !(d.attuale_smc > 0)) d.attuale_smc = hit.prezzo_gas;
+      if(hit.potenza_kW > 0 && !(d.potenza > 0)) d.potenza = hit.potenza_kW;
+      if(hit.consumo_luce_kwh_anno > 0 && !(d.kwh_anno > 0)) d.kwh_anno = hit.consumo_luce_kwh_anno;
+      if(hit.consumo_gas_smc_anno > 0 && !(d.smc_anno > 0)) d.smc_anno = hit.consumo_gas_smc_anno;
+      if(hit.quota_luce_eur_mese > 0 && !(d.fisso_luce > 0)) d.fisso_luce = hit.quota_luce_eur_mese;
+      if(hit.quota_gas_eur_mese > 0 && !(d.fisso_gas > 0)) d.fisso_gas = hit.quota_gas_eur_mese;
+      if(!d.tipo_prezzo && (hit.tipo_prezzo === 'fisso' || hit.tipo_prezzo === 'variabile')) d.tipo_prezzo = hit.tipo_prezzo;
+      d.ai_usata = true;
+    }catch(e){ console.warn('AI bolletta:', e.message); }
+    return d;
+  };
+  if(typeof window.parseBollettaText === 'function' && !window.parseBollettaText.__ai61){
+    var orig = window.parseBollettaText;
+    var wr = function(t){
+      var d = orig.apply(this, arguments);
+      try{
+        if(d && !d.__aiAvviata){
+          var m = manca(d);
+          if(m.prezzo_luce || m.prezzo_gas || !d.potenza){
+            d.__aiAvviata = true;
+            window.aiCompletaBolletta(t, d).then(function(){
+              try{ if(typeof window.analisiCompletaBrowser === 'function' && typeof window.render === 'function') render('offerte-view'); }catch(e){}
+            });
+          }
+        }
+      }catch(e){}
+      return d;
+    };
+    wr.__ai61 = true;
+    window.parseBollettaText = wr;
+  }
+})();
 </script>
 </body>
 </html>
