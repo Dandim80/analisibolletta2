@@ -1995,7 +1995,10 @@ function parseBollettaText(t){
   const potenzaDaRighe = () => {
     for(let i = 0; i < righe.length; i++){
       const r = righe[i];
-      if(!/potenz\w*\s+(?:impegnata|disponibile|contratt|riservata|del contratto)/i.test(r)) continue;
+      /* nota 143: Enel Corporate scrive solo "Potenza Potenza" nell'intestazione e i kW
+         sulla riga dati 2-3 righe sotto → prima pot=0 e passavano le offerte ≤16,5 kW */
+      const soloPot = /^\s*potenz\w*(\s+potenz\w*)*\s*:?\s*$/i.test(r);
+      if(!soloPot && !/potenz\w*\s+(?:impegnata|disponibile|contratt|riservata|del contratto)/i.test(r)) continue;
       for(let k = i; k <= Math.min(i + 6, righe.length - 1); k++){
         const pv = (righe[k].match(/(\d{1,3}(?:[.,]\d{1,3})?)\s*k\s*w\b/i) || [])[1];
         if(pv){ const p = nDe(pv); if(p >= 0.5 && p <= 500) return p; }
@@ -4794,11 +4797,16 @@ ${list.map((o,ix)=>{
         ${o.vincolo && !o.vincolo.mesi && o.vincolo.garanzia_mesi ? `<div><b>${o.vincolo.garanzia_mesi} mesi</b><br>Prezzo garantito</div>` : ''}
         ${o.vincolo && o.vincolo.penale ? `<div><b>${penaleFormulaO(o) ? 'a formula' : (penaleTabellaO(o).length ? 'da ' + eurP(penaleTabellaO(o)[0].eur) : (o.vincolo.penale_eur ? (penaleAlMese(o) ? eurP(o.vincolo.penale_eur) + '/mese' : 'fino a ' + eurP(o.vincolo.penale_eur)) : 'da tabellone'))}</b><br>Penale recesso anticipato${penaleFormulaO(o) ? ' <span style="font-size:.72rem;color:var(--muted)">(dipende dal mercato)</span>' : (penaleTabellaO(o).length ? ' <span style="font-size:.72rem;color:var(--muted)">(per potenza)</span>' : (penaleTotale(o) ? ' <span style="font-size:.72rem;color:var(--muted)">(al massimo ' + eurP(penaleTotale(o)) + ')</span>' : ''))}</div>` : ''}
       </div>`}
-      ${!fuoriF && (o.mistoLuce || o.mistoGas) ? `<div style="font-size:.82rem;color:#8a5a00;margin-top:8px">🔀 Offerta mista: ${o.mistoLuce ? 'fisso ' + eurP(o.mistoLuce.fisso_kwh) + '/kWh entro la soglia mensile' + ((state.analisi || {}).luce && state.analisi.luce.consumo_anno ? ' (' + sogliaMistoNota(o.mistoLuce, state.analisi.luce.consumo_anno, 'luce') + ' per il tuo profilo)' : '') + ', poi ' + mistoOltreStr(o.mistoLuce, 'luce') : 'fisso ' + eurP(o.mistoGas.fisso_smc) + '/Smc entro la soglia mensile' + ((state.analisi || {}).gas && state.analisi.gas.consumo_anno ? ' (' + sogliaMistoNota(o.mistoGas, state.analisi.gas.consumo_anno, 'gas') + ' per il tuo profilo)' : '') + ', poi ' + mistoOltreStr(o.mistoGas, 'gas')} — la stima del risparmio usa già il prezzo effettivo.</div>` : ''}
-              ${!fuoriF && (o.luceScontata || o.gasScontato) ? `<div style="font-size:.82rem;color:var(--muted);margin-top:8px">💡 Sconto automatico per tutti, già applicato al prezzo mostrato${o.luceScontata && o.pctL ? ' · luce −' + o.pctL + '%' : ''}${o.gasScontato && o.pctG ? ' · gas −' + o.pctG + '%' : ''}.</div>` : ''}
-      ${!fuoriF && ridSconto(o) ? `<div style="margin-top:8px;background:#eef6ff;border:1px solid #b9d5f2;border-radius:10px;padding:10px 12px;font-size:.85rem">💳 <b>Sconto −${ridSconto(o).pct} solo con RID bancario</b> (addebito automatico sul conto): il prezzo e il risparmio qui sopra lo comprendono. Se scegli il <b>bollettino</b> quel −${ridSconto(o).pct} non si applica e la bolletta costa di più.</div>` : ''}
-      ${(o.fasciaLuce || o.fasciaGas) ? fasciaTag(o) : ''}
-      ${notaVincoloCard(o)}
+      <details class="v6-more" style="margin-top:10px">
+        <summary style="cursor:pointer;font-size:.85rem;font-weight:700;color:#0c5a9e">Altre condizioni (sconti, soglie, penali, fascia)</summary>
+        <div style="margin-top:8px">
+        ${!fuoriF && (o.mistoLuce || o.mistoGas) ? `<div style="font-size:.82rem;color:#8a5a00;margin-top:8px">🔀 Offerta mista: ${o.mistoLuce ? 'fisso ' + eurP(o.mistoLuce.fisso_kwh) + '/kWh entro la soglia mensile' + ((state.analisi || {}).luce && state.analisi.luce.consumo_anno ? ' (' + sogliaMistoNota(o.mistoLuce, state.analisi.luce.consumo_anno, 'luce') + ' per il tuo profilo)' : '') + ', poi ' + mistoOltreStr(o.mistoLuce, 'luce') : 'fisso ' + eurP(o.mistoGas.fisso_smc) + '/Smc entro la soglia mensile' + ((state.analisi || {}).gas && state.analisi.gas.consumo_anno ? ' (' + sogliaMistoNota(o.mistoGas, state.analisi.gas.consumo_anno, 'gas') + ' per il tuo profilo)' : '') + ', poi ' + mistoOltreStr(o.mistoGas, 'gas')} — la stima del risparmio usa già il prezzo effettivo.</div>` : ''}
+                ${!fuoriF && (o.luceScontata || o.gasScontato) ? `<div style="font-size:.82rem;color:var(--muted);margin-top:8px">💡 Sconto automatico per tutti, già applicato al prezzo mostrato${o.luceScontata && o.pctL ? ' · luce −' + o.pctL + '%' : ''}${o.gasScontato && o.pctG ? ' · gas −' + o.pctG + '%' : ''}.</div>` : ''}
+        ${!fuoriF && ridSconto(o) ? `<div style="margin-top:8px;background:#eef6ff;border:1px solid #b9d5f2;border-radius:10px;padding:10px 12px;font-size:.85rem">💳 <b>Sconto −${ridSconto(o).pct} solo con RID bancario</b> (addebito automatico sul conto): il prezzo e il risparmio qui sopra lo comprendono. Se scegli il <b>bollettino</b> quel −${ridSconto(o).pct} non si applica e la bolletta costa di più.</div>` : ''}
+        ${(o.fasciaLuce || o.fasciaGas) ? fasciaTag(o) : ''}
+        ${notaVincoloCard(o)}
+        </div>
+      </details>
       ${fuoriF ? '' : `<div class="sub" style="margin-top:12px;font-size:.78rem">⏳ ${o.validaFino ? 'Offerta in validità fino a <b>' + dF(o.validaFino) + '</b> — ' : ''}la compagnia può modificarla o ritirarla in anticipo senza preavviso (fine promozione o esaurimento dei volumi). Ti interessa? Completa la richiesta ora, o il più presto possibile.</div>`}
       ${!fuoriF && inCorso ? '<div class="hint" style="margin-top:12px">↻ La richiesta per questa offerta è già iniziata: i bottoni qui sotto la <b>riprendono dal punto raggiunto</b>, i dati compilati restano al loro posto.</div>' : ''}
       ${(fuoriF && !inCorso) ? '' : (inCorso ? `<button class="btn btn-primary" style="margin-top:12px" onclick="avviaOrdine('${gA}', '${cA}')">▶ Continua la richiesta da dove l'hai lasciata</button>` : `<button class="btn btn-primary" style="margin-top:12px" onclick="apriSchedaOfferta(${ix})">📄 Maggiori info: prezzi, vincoli e dubbi</button>`)}
@@ -6773,7 +6781,7 @@ function guidaSteps(){
     } });
   st.push({ id:'documento', titolo:'Il tuo documento d\'identità',
     domanda:'Tipo, numero, ente e data di rilascio: servono al fornitore per intestare il contratto (modulo PDA).',
-    hint:'I dati li scrivi qui; la foto o il PDF del documento puoi allegarlo qui sotto oppure mandarlo dopo, in risposta all\'email del contratto.',
+    hint:'Puoi allegare il documento qui o mandarlo dopo per email.',
     html: () => '<div class="doc-grid"><div><label class="fl">Tipo</label><select onchange="state.ordine.intestatario.docTipo=this.value"><option value="">Tipo...</option><option value="CI" ' + (i.docTipo==='CI'?'selected':'') + '>Carta d\'identità</option><option value="PATENTE" ' + (i.docTipo==='PATENTE'?'selected':'') + '>Patente</option></select></div><div><label class="fl">N.° documento</label><input value="' + ordEsc(i.docNumero) + '" oninput="state.ordine.intestatario.docNumero=this.value.toUpperCase()"></div><div><label class="fl">Rilasciato da</label><input value="' + ordEsc(i.docEnte) + '" placeholder="Es. COMUNE DI MILANO" oninput="state.ordine.intestatario.docEnte=this.value.toUpperCase()"></div><div><label class="fl">Data di rilascio</label><input value="' + ordEsc(i.docData) + '" placeholder="GG/MM/AAAA" oninput="state.ordine.intestatario.docData=this.value"></div></div>'
       + '<div class="dropzone" style="padding:16px;margin-top:12px" onclick="document.getElementById(\'oDocFileW\').click()"><div class="icon">🪪</div><strong>Allega foto o PDF del documento (facoltativo)</strong><span>Se ce l\'hai qui, meglio: parte subito con la pratica.</span></div>'
       + '<input id="oDocFileW" type="file" accept="image/*,application/pdf" style="display:none" onchange="onDocFile(this,\'doc\')">'
@@ -6893,7 +6901,7 @@ function guidaSteps(){
   }
   st.push({ id:'pagamento', titolo:'Come vuoi pagare le fatture?',
     domanda:'Addebito in conto (RID) consigliato: nessun deposito cauzionale e sulle offerte con RID lo sconto del 5%.',
-    hint: p.modalita === 'BOLLETTINO' ? '⚠️ Con il bollettino il fornitore richiede, nella prima fattura, il deposito cauzionale di circa 50 € a fornitura.' : 'Il gestore non accetta carte prepagate o IBAN esteri.',
+    hint: p.modalita === 'BOLLETTINO' ? '⚠️ Con il bollettino: deposito cauzionale di circa 50 €.' : 'Niente carte prepagate o IBAN esteri.',
     html: () => '<div style="display:flex;gap:10px"><button class="btn ' + (p.modalita!=='BOLLETTINO'?'btn-primary':'btn-ghost') + '" onclick="guidaPay(\'RID\')">⚡ Addebito in conto (RID)</button><button class="btn ' + (p.modalita==='BOLLETTINO'?'btn-primary':'btn-ghost') + '" onclick="guidaPay(\'BOLLETTINO\')">📋 Bollettino</button></div>'
       + (p.modalita !== 'BOLLETTINO'
         ? '<div class="field" style="margin-top:10px"><label class="fl">IBAN <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'iban\')">' + scLabel('', 'Carica il file') + '</button></label><input value="' + ordEsc(p.iban) + '" placeholder="Es. IT60X0542811101000000001234" oninput="state.ordine.pay.iban=this.value"><div class="hint">Lo trovi in bolletta: verifico il codice di controllo prima dell\'invio.</div></div>'
@@ -6909,7 +6917,7 @@ function guidaSteps(){
     } });
   if(!bolOk){
     st.push({ id:'bolletta', titolo:'Allega la bolletta',
-      domanda:'L\'ultima bolletta (foto o PDF) serve all\'ufficio per completare la pratica, e a me per i dati mancanti.',
+      domanda:'Carica l\'ultima bolletta (foto o PDF): serve all\'ufficio.',
       hint:'La carichi una volta sola: resta nel dossier con la richiesta.',
       html: () => (mat.usaL ? '<div class="field"><label class="fl">Bolletta LUCE (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'luce\')">' + scLabel('', 'Carica la bolletta') + '</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'luce\')"><div class="hint" id="oBolLuceHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
       + (mat.usaG ? '<div class="field"><label class="fl">Bolletta GAS (foto o PDF) <button type="button" class="btn-link" style="font-weight:600" onclick="SCANNER.apri(\'bolletta\',\'gas\')">' + scLabel('', 'Carica la bolletta') + '</button></label><input type="file" accept="image/*,.pdf" onchange="onBolFile(this,\'gas\')"><div class="hint" id="oBolGasHint">Se non ce l\'hai ora, va bene: te la chiediamo in email.</div></div>' : '')
