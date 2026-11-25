@@ -167,8 +167,13 @@ label.fl{display:block;font-weight:600;font-size:.9rem;margin-bottom:6px;align-s
 .prog-steps span{font-size:.72rem;padding:3px 9px;border-radius:99px;border:1px solid #d6dee9;color:var(--muted)}
 .prog-steps span.on{border-color:rgba(23,153,79,.5);color:var(--success)}
 .prog-steps span.fatto{border-color:rgba(23,153,79,.3);color:var(--muted);text-decoration:line-through}
-.toast{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom));left:50%;transform:translate(-50%,140%);background:#10365f;color:#fff;border:1px solid rgba(16,54,95,.3);padding:12px 20px;border-radius:10px;font-size:.9rem;transition:transform .35s;z-index:99;max-width:92vw;box-shadow:0 8px 24px rgba(16,40,80,.25)}
-.toast.show{transform:translate(-50%,0)}
+.toast{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom));left:50%;transform:translate(-50%,220px);opacity:0;pointer-events:none;background:rgba(16,54,95,.88);color:#fff;border:none;padding:8px 16px;border-radius:999px;font-size:.8rem;transition:transform .35s,opacity .35s;z-index:99;max-width:80vw;box-shadow:0 4px 14px rgba(16,40,80,.18)}
+.toast.show{transform:translate(-50%,0);opacity:1;pointer-events:auto;animation:toastVia 2.3s forwards}
+/* nota 146t: l'animazione CSS riporta la pillola fuori schermo a 2,3 s
+   in aggiunta al timer JavaScript (2 s). Non è una correzione di un blocco
+   osservato: il difetto vero era lo stato nascosto, vedi nota 146u */
+@keyframes toastVia{0%,87%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,220px)}}
+.toast.show{animation:toastVia 2.3s forwards}
 
 .big-savings{background:linear-gradient(135deg,#17994f,#1fae5e);color:#fff;border-radius:12px;padding:26px;text-align:center;margin-bottom:18px}
 .big-savings .n{font-size:2.5rem;font-weight:800;font-family:var(--font-display)}
@@ -235,10 +240,6 @@ table.summary td:last-child{text-align:right;font-weight:700;color:var(--text)}
 table.summary.oneLine td{white-space:nowrap}
 @media(max-width:380px){table.summary.oneLine td{white-space:normal;font-size:.82rem}}
 
-.reviews{display:flex;align-items:center;gap:16px;margin-top:16px;padding:14px 16px;background:#fff;border:1px solid var(--border);border-radius:12px;color:var(--text);text-decoration:none;font-size:.9rem}
-.reviews .stars{color:var(--warning);font-size:1.05rem;letter-spacing:2px}
-.reviews .arr{margin-left:auto;color:var(--muted)}
-.reviews:hover{border-color:#b7c6da}
 
 @media(max-width:520px){.field-row,.offer .specs,.specs{grid-template-columns:1fr}}
 
@@ -281,6 +282,10 @@ table.summary.oneLine td{white-space:nowrap}
 
 /* nota 146i: su cellulare spariscono titolo analisi e nota ARERA (troppo spazio) */
   .v6-solo-pc{display:none}
+/* nota 146n: titolo offerte su una riga, frasi prezzo più piccole */
+  .v6-titolo-compatto{font-size:1.05rem;white-space:nowrap;letter-spacing:-.3px}
+  .v6-testo-mini{font-size:.72rem;padding:5px 9px;line-height:1.35}
+
 /* nota 146: su cellulare i due riquadri (luce+gas) devono stare insieme nella pagina:
    metà altezza, tutta larghezza, senza la riga "trascina qui" (da mobile non si trascina) */
 @media(max-width:700px){
@@ -289,6 +294,13 @@ table.summary.oneLine td{white-space:nowrap}
   .dropzone strong{display:inline;margin:0;font-size:.95rem}
   .dropzone span{display:none}
   #upErr + .alert.info{display:none}
+  /* nota 146z: su telefono la tagline va su una riga sua e si legge intera
+     (prima: white-space:nowrap + overflow:hidden → "Consulenza gratuita, per az…") */
+  .topbar-inner{flex-wrap:wrap;align-items:center}
+  /* i due link in colonna a destra: Contatti sopra, Privacy sotto */
+  .topbar-inner > div:last-child{flex-direction:column-reverse !important;gap:0 !important;align-items:flex-end}
+  .topbar-inner > div:last-child .btn-link{padding:2px 6px;font-size:.85rem}
+  .tagline{order:3;flex:0 0 100%;width:100%;margin-top:2px;text-align:center;white-space:normal;overflow:visible;font-size:.8rem;line-height:1.25;letter-spacing:0}
 }</style>
 </head>
 <body>
@@ -421,7 +433,7 @@ const FORNITORI = ['Enel','Eni','A2A','Acea','Edison','ENGIE','Sorgenia','Illumi
 
 /* ---------- Helpers ---------- */
 const $ = s => document.querySelector(s);
-function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 3200); }
+function toast(msg){ if(!msg) return; const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2000); }   /* nota 146s: 2 s e mai pillola vuota */
 function go(view){ if(VIEW && view !== VIEW && state.storia) state.storia.push(VIEW); render(view); window.scrollTo(0,0); }
 /* pulsante indietro: riprende la pagina precedente con TUTTI i dati che
    c'erano prima (state non si tocca: wizard, analisi e scelta restano intatti) */
@@ -682,12 +694,7 @@ function vHome(){
       <p style="margin:8px 0 0;color:var(--muted)">Niente pubblicità pagata: il nostro megafono sei <strong style="color:var(--text)">tu</strong>.</p>
       <p style="margin:10px 0 0;font-weight:700;color:#16a34a">💪 La nostra forza è da sempre il passaparola: usa lo strumento,<br>poi condividilo con amici e parenti!<br><span style="color:var(--primary)">Grazie in anticipo dallo staff DDM Soluzioni.</span></p>
     </div>
-    <a class="reviews" href="${REVIEWS_URL}" target="_blank" rel="noopener">
-      <span class="stars">★★★★★</span>
-      <span><strong>DDM Soluzioni</strong> — leggi le recensioni dei nostri clienti su Google</span>
-      <span class="arr">→</span>
-    </a>
-  </div>`;
+    </div>`;
 }
 
 function vTest(){
@@ -3157,7 +3164,7 @@ function analisiCompletaBrowser(parti){
   const gestMateria = m => [...new Set((parti || []).filter(p => p.tipo === m && (p.gestore || (p.dati && p.dati.gestore))).map(p => p.gestore || (p.dati && p.dati.gestore)))].join(' + ') || '';
 
   let luce = bl ? {
-    consumo_anno: sL.tot || bl.kwh_anno, prezzo_attuale_kwh: ((podUnici.size > 1 || sL.senzaP.length) && sL.mediaP) ? sL.mediaP : bl.attuale_kwh,
+    consumo_anno: sL.tot || bl.kwh_anno, prezzo_attuale_kwh: ((podUnici.size > 1 || sL.senzaP.length) && sL.mediaP) ? sL.mediaP : (bl.attuale_kwh || 0),   /* nota 146y: senza altri prezzi niente media: 0 = manca, lo stima il mercato */
     potenza: Math.max(bl.potenza || 0, sL.potMax || 0),
     biz: !!bl.biz || [...podUnici.values()].some(d => d.biz),
     /* scheda completa dei contatori: la vista mostra ogni POD con i suoi dati */
@@ -3165,6 +3172,7 @@ function analisiCompletaBrowser(parti){
     nonLetti: nonLetti('luce'),
     /* nota 126: contatori con consumi ma SENZA prezzo nel periodo (non entrano nella stima) */
     senzaPrezzo: sL.senzaP.slice(0, 6).map(d => ({ pod: d.pod || '', anno: d.kwh_anno || 0 })),
+    prezzoMedioContatori: sL.mediaP || 0,   /* nota 146y: media vera solo se c'e' piu' di un prezzo */
     evidenze: bl.__evidenze || null, bollette_ev: (parti || []).filter(p => p.tipo === 'luce' && p.dati && p.dati.__evidenze).map(p => ({ nome: p.file || 'bolletta', ev: p.dati.__evidenze })).slice(0, 8),
     pod: bl.pod || '', pod_n: podUnici.size, consumo_periodo: bl.kwh, materia: bl.materia_energia, mesi: bl.mesi,
     vendita_kwh: bl.vendita_kwh || 0, dispacciamento: bl.dispacciamento_kwh || 0,
@@ -3178,11 +3186,12 @@ function analisiCompletaBrowser(parti){
     mese_prezzo: bl.mese_prezzo || '', mese_bolletta: bl.mese_bolletta || ''
   } : null;
   let gas = bg ? {
-    consumo_anno: sG.tot || bg.smc_anno, prezzo_attuale_smc: ((pdrUnici.size > 1 || sG.senzaP.length) && sG.mediaP) ? sG.mediaP : bg.attuale_smc,
+    consumo_anno: sG.tot || bg.smc_anno, prezzo_attuale_smc: ((pdrUnici.size > 1 || sG.senzaP.length) && sG.mediaP) ? sG.mediaP : (bg.attuale_smc || 0),
     contatori: [...pdrUnici.values()].slice(0, 12).map(d => ({ pdr: d.pdr, anno: d.smc_anno || 0, prezzo: d.attuale_smc || 0, stimato: !!d.__annoStimatoPeriodo, ev: d.__evidenze || null })),
     evidenze: bg.__evidenze || null, bollette_ev: (parti || []).filter(p => p.tipo === 'gas' && p.dati && p.dati.__evidenze).map(p => ({ nome: p.file || 'bolletta', ev: p.dati.__evidenze })).slice(0, 8), nonLetti: nonLetti('gas'),
     /* nota 126: contatori con consumi ma SENZA prezzo nel periodo (non entrano nella stima) */
     senzaPrezzo: sG.senzaP.slice(0, 6).map(d => ({ pdr: d.pdr || '', anno: d.smc_anno || 0 })),
+    prezzoMedioContatori: sG.mediaP || 0,
     pdr: bg.pdr || '', pdr_n: pdrUnici.size, consumo_periodo: bg.smc, materia: bg.materia_gas, mesi: bg.mesi,
     biz: !!bg.biz || [...pdrUnici.values()].some(d => d.biz),
     vendita_smc: bg.vendita_smc || 0, dispacciamento: bg.dispacciamento_smc || 0,
@@ -3229,7 +3238,9 @@ function analisiCompletaBrowser(parti){
       stima_medi: true, consumi_stimati: true
     };
   }
-  if(!gas && vuolGas && !gasSporca){
+  /* nota 146y: se il cliente ha caricato SOLO la bolletta luce, il gas non si inventa:
+     senza gas il risparmio e' solo luce (prima qui nasceva un gas finto senza prezzo → NaN) */
+  if(!gas && vuolGas && !gasSporca && (parti || []).some(p => p.tipo === 'gas')){
     const pmG = prezziMercatoBrowser();
     gas = {
       consumo_anno: 1400, prezzo_attuale_smc: Math.round((pmG.psv_eur_smc + 0.15) * 1e4) / 1e4,
@@ -3265,14 +3276,19 @@ function analisiCompletaBrowser(parti){
      il risparmio escono comunque. DECISIONE 05/11: non si chiede più al cliente di
      scrivere i dati (abbandonerebbe il form). Il flag prezzo_stimato_mercato
      mantiene la trasparenza nei riepiloghi. */
+  /* nota 146y: il prezzo mancante si stima SOLO se c'e' un prezzo base da cui partire
+     (prezzo 0 = dato non letto, prezzo NaN = materia inventata senza bolletta: non si
+     inventa); e la media tra contatori vale solo se esiste davvero un prezzo medio. */
   const stimaPrezzoMancante = (p, materia) => {
     if(!p || !(p.consumo_anno > 0)) return;
     const pm = prezziMercatoBrowser();
-    if(materia === 'luce' && !(p.prezzo_attuale_kwh > 0)){
+    const base = materia === 'luce' ? p.prezzo_attuale_kwh : p.prezzo_attuale_smc;
+    if(base != null && isFinite(base) && !(base > 0)) p.__prezzoDaStimare = true;
+    if(materia === 'luce' && p.__prezzoDaStimare){
       const nuovo = (pm.pun_eur_kwh || 0) + 0.03;
       if(nuovo > 0.05){ p.prezzo_attuale_kwh = Math.round(nuovo * 1e4) / 1e4; p.prezzo_stimato_mercato = true; }
     }
-    if(materia === 'gas' && !(p.prezzo_attuale_smc > 0)){
+    if(materia === 'gas' && p.__prezzoDaStimare){
       const nuovo = (pm.psv_eur_smc || 0) + 0.15;
       if(nuovo > 0.25){ p.prezzo_attuale_smc = Math.round(nuovo * 1e4) / 1e4; p.prezzo_stimato_mercato = true; }
     }
@@ -4310,46 +4326,107 @@ function avvisoContratto(p, materia){
   if(!p || !p.contratto_stato) return '';
   const sc = dF(p.scadenza_contratto);
   if(p.alla_cadenza && p.contratto_stato === 'scaduto'){
-    return `<div class="alert error">Offerta ${materia} a prezzo fisso <b>SCADUTA il ${sc}</b>: alla cadenza il gestore passa a prezzo variabile (${materia === 'gas' ? 'PSV del mese precedente + 0,15 €/Smc' : 'PUN del mese + spread'}). La stima usa già il prezzo variabile (${materia === 'gas' ? eurP(p.prezzo_attuale_smc) + '/Smc' : eurP(p.prezzo_attuale_kwh) + '/kWh'}, prima era ${materia === 'gas' ? eurP(p.prezzo_alla_cadenza_storico) + '/Smc' : eurP(p.prezzo_alla_cadenza_storico) + '/kWh'} fisso). Consulenza <b>consigliata</b> per bloccare un nuovo prezzo fisso.</div>`;
+    return `<div class="alert error">Offerta ${materia} a prezzo fisso <b>SCADUTA il ${sc}</b>: alla cadenza il gestore passa a prezzo variabile (${materia === 'gas' ? 'PSV del mese precedente + 0,15 €/Smc' : 'PUN del mese + spread'}). La stima usa già il prezzo variabile (${materia === 'gas' ? eurP(p.prezzo_attuale_smc) + '/Smc' : eurP(p.prezzo_attuale_kwh) + '/kWh'}, prima era ${materia === 'gas' ? eurP(p.prezzo_alla_cadenza_storico) + '/Smc' : eurP(p.prezzo_alla_cadenza_storico) + '/kWh'} fisso).</div>`;
   }
   if(p.alla_cadenza){   /* fisso in scadenza: mancata comunicazione del gestore → variabile presumibile */
-    return `<div class="alert info">Prezzo ${materia} fisso <b>in scadenza il ${sc}</b>. In mancanza di una comunicazione del tuo gestore torna prezzo variabile (${materia === 'gas' ? 'PSV + 0,15 €/Smc' : 'PUN + spread'}): le stime confrontano sul variabile presumibile. Consulenza utile per bloccare un nuovo fisso prima della scadenza.${p.periodo && p.periodo.dal && p.periodo.al ? ' Fattura analizzata: periodo ' + dF(p.periodo.dal) + ' – ' + dF(p.periodo.al) + '.' : ''}</div>`;
+    return `<div class="alert info v6-testo-mini">Prezzo ${materia} fisso <b>in scadenza il ${sc}</b>. In mancanza di una comunicazione del tuo gestore torna prezzo variabile (${materia === 'gas' ? 'PSV + 0,15 €/Smc' : 'PUN + spread'}): le stime confrontano sul variabile presumibile.${p.periodo && p.periodo.dal && p.periodo.al ? ' Fattura analizzata: periodo ' + dF(p.periodo.dal) + ' – ' + dF(p.periodo.al) + '.' : ''}</div>`;
   }
   if(p.tipo_prezzo !== 'fisso'){
     return p.contratto_stato === 'scaduto'
-      ? `<div class="alert error">Prezzo ${materia} variabile ma <b>condizioni scadute il ${sc}</b>: il prezzo della bolletta può non essere più quello attuale. Il consulente verifica in call.</div>`
-      : `<div class="alert info">Prezzo ${materia} variabile <b>in scadenza il ${sc}</b> (entro 3 mesi): le condizioni si rinnovano o cambiano. Consulenza utile in questo momento.</div>`;
+      ? `<div class="alert info v6-testo-mini">Abbiamo letto che le condizioni ${materia} sono <b>scadute il ${sc}</b>.${p.ribassato ? " La stima usa il prezzo aggiornato all’ultimo PUN/PSV disponibile." : ""}</div>`
+      : `<div class="alert info v6-testo-mini">Prezzo ${materia} variabile <b>in scadenza il ${sc}</b> (entro 3 mesi): le condizioni si rinnovano o cambiano.</div>`;
   }
   return p.contratto_stato === 'scaduto'
-    ? `<div class="alert error">Prezzo ${materia} fisso ma <b>contratto scaduto il ${sc}</b>: il prezzo fisso che stiamo confrontando è probabilmente quello vecchio. Il gestore dovrebbe aver già inviato le nuove condizioni contrattuali (nuovo prezzo fisso), quindi la consulenza è <b>consigliata</b> per valutare il rinnovo.</div>`
-    : `<div class="alert info">Prezzo ${materia} fisso <b>in scadenza il ${sc}</b> (entro 3 mesi): ci si aspettano nuove condizioni contrattuali dal gestore. Consulenza <b>consigliata</b> per valutare il rinnovo a tempo debito.</div>`;
+    ? `<div class="alert error">Prezzo ${materia} fisso ma <b>contratto scaduto il ${sc}</b>: il prezzo fisso che stiamo confrontando è probabilmente quello vecchio. Il gestore dovrebbe aver già inviato le nuove condizioni contrattuali (nuovo prezzo fisso).</div>`
+    : `<div class="alert info v6-testo-mini">Prezzo ${materia} fisso <b>in scadenza il ${sc}</b> (entro 3 mesi): ci si aspettano nuove condizioni contrattuali dal gestore.</div>`;
 }
 /* nota 126: avviso per i contatori che hanno consumi annui ma nessun prezzo nel
    periodo (bolletta a 0 consumi): il confronto usa il prezzo medio degli altri
    contatori, va detto al cliente (e il consulente lo rifà con la bolletta vera) */
 function v6Toggle(b){ var on = document.body.classList.toggle("v6-dettagli"); if(b) b.textContent = on ? "Nascondi dettagli" : "Mostra dettagli"; }
-function avvisoSenzaPrezzo(arr, unita, etichetta, prezzoMedio){
+function avvisoSenzaPrezzo(arr, unita, etichetta, prezzoMedio, mercato, mediaReale){
   if(!arr || !arr.length) return '';
+  /* nota 146y: se non ci sono altri contatori con prezzo, la media non esiste (dava
+     il prezzo dell'unico contatore o 0): si usa il prezzo di mercato PUN/PSV + spread */
+  const usatoMedia = !!(mediaReale && prezzoMedio > 0);
+  if(!usatoMedia && mercato) prezzoMedio = mercato;
   let tot = 0;
   for(const x of arr) tot += (x.anno || 0);
   const chi = arr.map(x => String(x[etichetta] || '?')).join(' · ');
   const n = arr.length;
   const nome = (unita === 'Smc' ? 'gas' : 'luce');
-  return '<div class="alert info">' + (n === 1 ? '1 contatore ' + nome : n + ' contatori ' + nome)
-    + ' senza prezzo nel periodo (bolletta a consumi zero'
-    + (tot > 0 ? ': ' + mil(tot) + ' ' + unita + '/anno — ' + chi : '') + '): per il confronto è stato usato il prezzo medio degli altri contatori ('
-    + prezzoMedio + '/' + unita + '). Se la loro tariffa è diversa, il risparmio cambia: il consulente lo ricalcola con la bolletta vera.</div>';
+  return '<div class="alert info" style="font-size:.68rem;line-height:1.3;opacity:.8">'
+    + (n === 1 ? '1 contatore ' + nome : n + ' contatori ' + nome) + ' senza prezzo in bolletta: per il confronto abbiamo usato ' + (usatoMedia ? 'il prezzo medio degli altri contatori ' : 'il prezzo di mercato ') + prezzoMedio + '/' + unita + '.</div>';
 }
 /* nota 127: se il prezzo in bolletta non è leggibile (scansione brutta, pagina
    mancante) la stima usa il prezzo medio di mercato (PUN+0,03 / PSV+0,15): il
    risparmio è INDICATIVO e va detto in chiaro, non mostrato come prezzo vero */
-function avvisoPrezzoStimato(l, g){
-  const parti = [];
-  if(l && l.prezzo_stimato_mercato) parti.push('luce a ' + eurP(l.prezzo_attuale_kwh) + '/kWh (PUN + 0,03)');
-  if(g && g.prezzo_stimato_mercato) parti.push('gas a ' + eurP(g.prezzo_attuale_smc) + '/Smc (PSV + 0,15)');
-  if(!parti.length) return '';
-  return '<div class="alert error">Il prezzo in bolletta non è leggibile (scansione o pagina mancante): per il confronto è stato usato il prezzo medio di mercato — '
-    + parti.join(' e ') + '. Il risparmio qui sotto è quindi <b>indicativo</b>, non calcolato sulla tua bolletta: il consulente lo rifà sul prezzo vero.</div>';
+/* nota 146x: prezzo in bolletta non letto. Riquadro DENTRO la pagina analisi, non
+   blocca il percorso: dice quale prezzo abbiamo usato per la stima e in quale riga
+   della bolletta trovarlo; se il cliente lo scrive, "Ricalcola" rifà la stima col suo
+   prezzo. Se non lo scrive, prosegue con la stima di mercato.
+   Prende il posto del vecchio avviso rosso e della vista vDatiMancanti (05/11).
+   La spiegazione della riga usa la classe "note": la classe "hint" su telefono e' nascosta. */
+function hintRigaPrezzo(m){
+  return m === 'luce'
+    ? "Riga «di cui spesa per la vendita di energia elettrica» con il prezzo €/kWh — di solito nella prima pagina o nello «Scontrino dell'energia». Prendi il prezzo con più decimali (es. 0,138013), non il totale in euro."
+    : "Riga «prezzo unitario medio» o «di cui vendita» con il prezzo €/Smc — di solito nello «Scontrino del gas». Prendi il prezzo con più decimali (es. 0,8412), non il totale in euro.";
+}
+function boxPrezzoNonLetto(l, g){
+  /* nota 146x: il riquadro si apre solo se il prezzo manca DAVVERO (non letto o 0).
+     Se il cliente ha gia' scritto il suo prezzo (ricalcolaPrezzoManuale) sparisce:
+     guardare solo il flag prezzo_stimato_mercato lo lasciava aperto a errore. */
+  /* nota 146y: g = a.gas || {} e' un oggetto VUOTO quando il gas non c'e' (solo luce):
+     senza consumo e senza prezzo non e' una materia da mostrare (prima chiedeva il
+     prezzo gas con €NaN). Stessa guardia per la luce. */
+  const mancaL = !!(l && ((l.prezzo_attuale_kwh > 0) || (l.consumo_anno > 0))) && (!(l.prezzo_attuale_kwh > 0) || l.prezzo_stimato_mercato);
+  const mancaG = !!(g && ((g.prezzo_attuale_smc > 0) || (g.consumo_anno > 0))) && (!(g.prezzo_attuale_smc > 0) || g.prezzo_stimato_mercato);
+  const campi = [];
+  if(l && mancaL) campi.push('luce');
+  if(g && mancaG) campi.push('gas');
+  if(!campi.length) return '';
+  const usato = [];
+  if(campi.indexOf('luce') >= 0) usato.push('luce a ' + eurP(l.prezzo_attuale_kwh) + '/kWh (PUN + 0,03)');
+  if(campi.indexOf('gas') >= 0) usato.push('gas a ' + eurP(g.prezzo_attuale_smc) + '/Smc (PSV + 0,15)');
+  const campo = m => '<div style="display:flex;align-items:center;gap:8px;margin-top:7px">'
+    + '<input id="pnl-' + m + '" inputmode="decimal" placeholder="' + (m === 'luce' ? 'Prezzo luce €/kWh, es. 0,138' : 'Prezzo gas €/Smc, es. 0,84') + '" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #cfd8e6;border-radius:8px;font-size:.9rem">'
+    + '</div>'
+    + '<div style="margin:3px 0 0;font-size:.68rem;line-height:1.3;opacity:.8">' + hintRigaPrezzo(m) + '</div>';
+  return '<div id="pnlBox" style="background:#eef4fb;border:1px solid #cfd8e6;border-radius:10px;padding:9px 11px;margin-top:12px">'
+    + '<div style="font-size:.86rem"><b>Prezzo ' + campi.join(' e ') + ' non letto</b>: per la stima abbiamo usato il prezzo variabile di mercato (PUN/PSV + spread). Se lo trovi in bolletta, scrivilo qui e rifai il calcolo.</div>'
+    + campi.map(campo).join('')
+    + '<div id="pnlErr"></div>'
+    + '<button class="btn btn-primary" style="margin-top:8px;padding:6px 14px;font-size:.85rem" onclick="ricalcolaPrezzoManuale()">Ricalcola</button>'
+    + '</div>';
+}
+function ricalcolaPrezzoManuale(){
+  const a = state.analisi;
+  if(!a) return;
+  const err = document.getElementById('pnlErr');
+  /* nota 146x: isFinite('') e' true (Number('') = 0): senza questo controllo un campo
+     vuoto passava per zero e faceva sparire il riquadro senza dire nulla */
+  const leggi = id => { const el = document.getElementById(id); const v = String((el && el.value) || '').trim().replace(/\s/g, ''); if(!v) return 0; const x = nDe(v); return isFinite(x) ? x : 0; };
+  const pL = leggi('pnl-luce'), pG = leggi('pnl-gas');
+  let testo = '', fatto = false;
+  if(pL){
+    if(pL < 0.05 || pL > 3) testo = 'Il prezzo luce scritto sembra fuori misura (' + pL + ' €/kWh): controlla virgola e unità.';
+    else if(a.luce){ a.luce.prezzo_attuale_kwh = pL; a.luce.prezzo_stimato_mercato = false; fatto = true; }
+  }
+  if(!testo && pG){
+    if(pG < 0.25 || pG > 3) testo = 'Il prezzo gas scritto sembra fuori misura (' + pG + ' €/Smc): controlla virgola e unità.';
+    else if(a.gas){ a.gas.prezzo_attuale_smc = pG; a.gas.prezzo_stimato_mercato = false; fatto = true; }
+  }
+  if(testo){ if(err) err.innerHTML = '<div class="alert error">' + testo + '</div>'; return; }
+  if(!fatto){ if(err) err.innerHTML = '<div class="alert error">Scrivi il prezzo che leggi in bolletta: solo il numero, con la virgola (es. 0,138).</div>'; return; }
+  /* stime rifatte con gli stessi cinque dati usati da analisiCompletaBrowser */
+  const l = a.luce || {}, g = a.gas || {};
+  const dati = { attuale_kwh: l.prezzo_attuale_kwh || 0, kwh_anno: l.consumo_anno || 0, attuale_smc: g.prezzo_attuale_smc || 0, smc_anno: g.consumo_anno || 0, dispacciamento_luce: l.dispacciamento || 0 };
+  const gm = a.gestori_materia || {};
+  const gest = (state.fornitori && state.fornitori.length) ? state.fornitori : [a.gestore_attuale, gm.luce, gm.gas].filter(Boolean);
+  a.stime = stimeDi(dati, gest, a.cliente);
+  a.migliore = (a.stime.length > 0 && a.stime[0].totale_max > 0) ? a.stime[0] : null;
+  toast('Prezzo aggiornato: stima ricalcolata');
+  render(VIEW);
 }
 /* nota 122: "2026-09" → "settembre 2026" (mese di riferimento del prezzo in card) */
 function meseLungo(ym){
@@ -4391,47 +4468,46 @@ function stimaCorpo(){
         <div class="specs" style="grid-template-columns:1fr;gap:8px">
           ${l.consumo_anno ? `<div>${evTh(l.evidenze, ['kwh_anno', 'kwh'], 'consumo annuo luce')}<b>${mil(l.consumo_anno)} kWh/anno</b><br>Consumo annuo ${ind === 'azienda' ? '(valori inseriti)' : (ind ? '(consumi medi)' : ((l.pod_n || 0) > 1 ? '(somma di ' + l.pod_n + ' POD)' : 'dalla bolletta'))}</div>` : ''}
           ${l.prezzo_attuale_kwh ? `<div>${evTh(l.evidenze, ['attuale_kwh'], 'prezzo luce')}<b>${eurP(l.prezzo_attuale_kwh)} → ${eurP(Math.max(0, l.prezzo_attuale_kwh - (l.dispacciamento > 0 && l.dispacciamento < 0.05 ? l.dispacciamento : 0.015)))}/kWh</b><br>Spesa vendita ${l.ribassato && l.mese_prezzo ? 'aggiornata a ' + meseLungo(l.mese_prezzo) : (l.mese_bolletta ? 'della bolletta di ' + meseLungo(l.mese_bolletta) : 'dalla bolletta')} - poi tolto il dispacciamento ${l.dispacciamento > 0 && l.dispacciamento < 0.05 ? 'reale della bolletta (' + eurP(l.dispacciamento) + ')' : 'forizzato (0,015)'}</div>` : ''}
-          <div><b>${l.cliente ? String(l.cliente).replace(/[<>]/g, '') : '—'}</b><br>Intestatario${l.cliente ? '' : ' (non riconosciuto: lo scriviamo in call)'}</div>
-          <div><b>${l.indirizzo ? String(l.indirizzo).replace(/[<>]/g, '') : '—'}</b><br>Indirizzo di fornitura${l.indirizzo ? '' : ' (non riconosciuto: lo scriviamo in call)'}</div>
+          <div><b>${l.cliente ? String(l.cliente).replace(/[<>]/g, '') : '—'}</b><br>Intestatario${l.cliente ? '' : ' (non riconosciuto)'}</div>
+          <div><b>${l.indirizzo ? String(l.indirizzo).replace(/[<>]/g, '') : '—'}</b><br>Indirizzo di fornitura${l.indirizzo ? '' : ' (non riconosciuto)'}</div>
           ${l.pod ? `<div>${evTh(l.evidenze, ['pod'], 'POD')}<b>${l.pod}</b><br>POD — punto di prelievo${(l.pod_n || 0) > 1 ? ' (primo di ' + l.pod_n + ' contatori)' : ''}</div>` : ''}
-          ${(l.contatori || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>I ${l.contatori.length} contatori luce rilevati</b><br>${l.contatori.map(c => ' ' + evTh(c.ev, ['kwh_anno', 'kwh'], 'contatore luce') + evTh(c.ev, ['attuale_kwh'], 'prezzo contatore luce') + ' • <b>' + c.pod + '</b>: ' + mil(c.anno || 0) + ' kWh/anno' + (c.prezzo ? ' a ' + eurP(c.prezzo) + '/kWh' : '') + (c.potenza ? ' · ' + c.potenza + ' kW' : '') + (c.stimato ? ' <i style="color:#8a5a00">(annuale stimato dal periodo — da confermare in call)</i>' : '')).join('<br>')}</div>` : ''}
+          ${(l.contatori || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>I ${l.contatori.length} contatori luce rilevati</b><br>${l.contatori.map(c => ' ' + evTh(c.ev, ['kwh_anno', 'kwh'], 'contatore luce') + evTh(c.ev, ['attuale_kwh'], 'prezzo contatore luce') + ' • <b>' + c.pod + '</b>: ' + mil(c.anno || 0) + ' kWh/anno' + (c.prezzo ? ' a ' + eurP(c.prezzo) + '/kWh' : '') + (c.potenza ? ' · ' + c.potenza + ' kW' : '') + (c.stimato ? ' <i style="color:#8a5a00">(annuale stimato dal periodo — da verificare)</i>' : '')).join('<br>')}</div>` : ''}
           ${(l.bollette_ev || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>Verifica per bolletta — luce</b> (un ritaglio per ogni bolletta allegata)<br>${l.bollette_ev.map((b, ib) => ' <b>' + String(b.nome).replace(/[<>"&]/g, '').slice(0, 44) + '</b>: ' + evTh(b.ev, ['kwh_anno', 'kwh'], 'consumo annuo luce, bolletta ' + (ib + 1)) + evTh(b.ev, ['attuale_kwh'], 'prezzo luce, bolletta ' + (ib + 1))).join('<br>')}</div>` : ''}
           ${l.potenza ? `<div>${evTh(l.evidenze, ['potenza'], 'potenza')}<b>${l.potenza} kW</b><br>Potenza contrattuale</div>` : ''}
           ${l.fisso_mese ? `<div>${evTh(l.evidenze, ['fisso_luce', 'fisso_gas'], 'quota fissa luce')}<b>${eurP(l.fisso_mese)}/mese</b><br>Quota fissa attuale</div>` : ''}
           ${l.scadenza_contratto ? `<div>${evTh(l.evidenze, ['scadenza_contratto'], 'scadenza luce')}<b>${dF(l.scadenza_contratto)}</b><br>Scadenza condizioni — luce</div>` : ''}
         </div>
         ${avvisoContratto(l, 'luce')}
-        ${avvisoSenzaPrezzo(l.senzaPrezzo, 'kWh', 'pod', eurP(l.prezzo_attuale_kwh))}
+        ${avvisoSenzaPrezzo(l.senzaPrezzo, 'kWh', 'pod', l.prezzo_attuale_kwh, eurP(Math.round(((prezziMercatoBrowser().pun_eur_kwh || 0) + 0.03) * 1e4) / 1e4), l.prezzoMedioContatori > 0)}
         ${(l.nonLetti || []).length ? `<div class="alert info">${l.nonLetti.length} bollette luce NON lette (${l.nonLetti.join(' · ')}): non sono nella stima. Se puoi, ricarica le bollette vere o recuperi i PDF digitali.</div>` : ''}      </div>` : ''}
       ${g.consumo_anno ? `<div class="pannello-materia">
         <div class="tit-materia">🔥 GAS</div>
         <div class="specs" style="grid-template-columns:1fr;gap:8px">
           ${g.consumo_anno ? `<div>${evTh(g.evidenze, ['smc_anno', 'smc'], 'consumo annuo gas')}<b>${mil(g.consumo_anno)} Smc/anno</b><br>Consumo annuo ${ind === 'azienda' ? '(valori inseriti)' : (ind ? '(consumi medi)' : ((g.pdr_n || 0) > 1 ? '(somma di ' + g.pdr_n + ' PDR)' : 'dalla bolletta'))}</div>` : ''}
           ${g.prezzo_attuale_smc ? `<div>${evTh(g.evidenze, ['attuale_smc'], 'prezzo gas')}<b>${eurP(g.prezzo_attuale_smc)}/Smc</b><br>Spesa vendita ${g.ribassato && g.mese_prezzo ? 'aggiornata a ' + meseLungo(g.mese_prezzo) : (g.mese_bolletta ? 'della bolletta di ' + meseLungo(g.mese_bolletta) : 'dalla bolletta')} — usata interamente (il gas non ha dispacciamento)</div>` : ''}
-          <div><b>${g.cliente ? String(g.cliente).replace(/[<>]/g, '') : '—'}</b><br>Intestatario${g.cliente ? '' : ' (non riconosciuto: lo scriviamo in call)'}</div>
-          <div><b>${g.indirizzo ? String(g.indirizzo).replace(/[<>]/g, '') : '—'}</b><br>Indirizzo di fornitura${g.indirizzo ? '' : ' (non riconosciuto: lo scriviamo in call)'}</div>
+          <div><b>${g.cliente ? String(g.cliente).replace(/[<>]/g, '') : '—'}</b><br>Intestatario${g.cliente ? '' : ' (non riconosciuto)'}</div>
+          <div><b>${g.indirizzo ? String(g.indirizzo).replace(/[<>]/g, '') : '—'}</b><br>Indirizzo di fornitura${g.indirizzo ? '' : ' (non riconosciuto)'}</div>
           ${g.pdr ? `<div>${evTh(g.evidenze, ['pdr'], 'PDR')}<b>${g.pdr}</b><br>PDR — punto di riconsegna${(g.pdr_n || 0) > 1 ? ' (primo di ' + g.pdr_n + ' contatori)' : ''}</div>` : ''}
-          ${(g.contatori || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>I ${g.contatori.length} contatori gas rilevati</b><br>${g.contatori.map(c => ' ' + evTh(c.ev, ['smc_anno', 'smc'], 'contatore gas') + evTh(c.ev, ['attuale_smc'], 'prezzo contatore gas') + ' • <b>' + c.pdr + '</b>: ' + mil(c.anno || 0) + ' Smc/anno' + (c.prezzo ? ' a ' + eurP(c.prezzo) + '/Smc' : '') + (c.stimato ? ' <i style="color:#8a5a00">(annuale stimato dal periodo — da confermare in call)</i>' : '')).join('<br>')}</div>` : ''}
+          ${(g.contatori || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>I ${g.contatori.length} contatori gas rilevati</b><br>${g.contatori.map(c => ' ' + evTh(c.ev, ['smc_anno', 'smc'], 'contatore gas') + evTh(c.ev, ['attuale_smc'], 'prezzo contatore gas') + ' • <b>' + c.pdr + '</b>: ' + mil(c.anno || 0) + ' Smc/anno' + (c.prezzo ? ' a ' + eurP(c.prezzo) + '/Smc' : '') + (c.stimato ? ' <i style="color:#8a5a00">(annuale stimato dal periodo — da verificare)</i>' : '')).join('<br>')}</div>` : ''}
           ${(g.bollette_ev || []).length > 1 ? `<div style="grid-column:1/-1;background:var(--primary-100);border-radius:10px;padding:10px 12px;font-size:.85rem"><b>Verifica per bolletta — gas</b> (un ritaglio per ogni bolletta allegata)<br>${g.bollette_ev.map((b, ib) => ' <b>' + String(b.nome).replace(/[<>"&]/g, '').slice(0, 44) + '</b>: ' + evTh(b.ev, ['smc_anno', 'smc'], 'consumo annuo gas, bolletta ' + (ib + 1)) + evTh(b.ev, ['attuale_smc'], 'prezzo gas, bolletta ' + (ib + 1))).join('<br>')}</div>` : ''}
           ${g.fisso_mese ? `<div>${evTh(g.evidenze, ['fisso_gas', 'fisso_luce'], 'quota fissa gas')}<b>${eurP(g.fisso_mese)}/mese</b><br>Quota fissa attuale</div>` : ''}
           ${g.scadenza_contratto ? `<div>${evTh(g.evidenze, ['scadenza_contratto'], 'scadenza gas')}<b>${dF(g.scadenza_contratto)}</b><br>Scadenza condizioni — gas</div>` : ''}
         </div>
         ${gasNessuna ? '<div class="alert info">Per il gas non ci sono offerte più convenienti del tuo prezzo attuale (' + eurP(g.prezzo_attuale_smc) + '/Smc): il risparmio sarebbe nullo o negativo.</div>' : ''}
         ${avvisoContratto(g, 'gas')}
-        ${avvisoSenzaPrezzo(g.senzaPrezzo, 'Smc', 'pdr', eurP(g.prezzo_attuale_smc))}
+        ${avvisoSenzaPrezzo(g.senzaPrezzo, 'Smc', 'pdr', g.prezzo_attuale_smc, eurP(Math.round(((prezziMercatoBrowser().psv_eur_smc || 0) + 0.15) * 1e4) / 1e4), g.prezzoMedioContatori > 0)}
         ${(g.nonLetti || []).length ? `<div class="alert info">${g.nonLetti.length} bollette gas NON lette (${g.nonLetti.join(' · ')}): non sono nella stima. Se puoi, ricarica le bollette vere o recuperi i PDF digitali.</div>` : ''}
       </div>` : ''}
     </div>` : `<div class="alert info">Dati incompleti nella bolletta: il consulente li ricaverà in call.</div>`}
 
-    ${(l.stima_medi || g.stima_medi) ? `<div class="alert info">Bolletta ${l.stima_medi ? 'luce' : ''}${l.stima_medi && g.stima_medi ? ' e ' : ''}${g.stima_medi ? 'gas' : ''} non leggibile (scansione?): per quella materia la stima usa i dati medi — ${g.stima_medi ? '1.400 Smc/anno e prezzo variabile di mercato (PSV del mese + spread 0,15 €/Smc)' : '2.700 kWh/anno e prezzo variabile di mercato (PUN del mese + spread 0,03 €/kWh)'}. Il consulente la rifà sui dati veri in call.</div>` : ''}
+    ${(l.stima_medi || g.stima_medi) ? `<div class="alert info">Bolletta ${l.stima_medi ? 'luce' : ''}${l.stima_medi && g.stima_medi ? ' e ' : ''}${g.stima_medi ? 'gas' : ''} non leggibile (scansione?): per quella materia la stima usa i dati medi — ${g.stima_medi ? '1.400 Smc/anno e prezzo variabile di mercato (PSV del mese + spread 0,15 €/Smc)' : '2.700 kWh/anno e prezzo variabile di mercato (PUN del mese + spread 0,03 €/kWh)'}</div>` : ''}
     ${a.gestore_attuale ? `<div class="alert info">${a.gestori_materia && a.gestori_materia.luce && a.gestori_materia.gas ? 'Gestore attuale — luce <b>' + a.gestori_materia.luce + '</b> · gas <b>' + a.gestori_materia.gas + '</b>.' : 'Gestore attuale individuato: <b>' + a.gestore_attuale + '</b>.'}</div>` : ''}
     ${a.senza_bolletta ? `<div class="alert info">Come nasce questa stima: senza bolletta uso ${ind === 'azienda' ? 'i consumi che hai inserito' : 'i consumi medi'} e il prezzo medio praticabile di mercato dell'energia come punto di partenza. In call il consulente la conferma sui dati reali.</div>` : ''}
     ${ind === 'azienda' ? `<div class="alert info">Per le aziende la consulenza personalizzata è disponibile <b>telefonica, in videocall o in sede</b> (provincia di Vicenza e Padova): la tipologia la scegli alla prenotazione.</div>` : ''}
-    ${!(l.alla_cadenza || g.alla_cadenza) && (l.tipo_prezzo || g.tipo_prezzo || l.periodo || g.periodo) ? `<div class="alert info">Prezzo: <b>${[l.tipo_prezzo && 'luce ' + tipoPrezStr(l.tipo_prezzo), g.tipo_prezzo && 'gas ' + tipoPrezStr(g.tipo_prezzo)].filter(Boolean).join(' · ') || 'da confermare in call'}</b>${(l.periodo || g.periodo) ? ` · periodo fattura ${dF((l.periodo || g.periodo).dal)} – ${dF((l.periodo || g.periodo).al)}` : ''}.</div>` : ''}
-    ${(l.ribassato || g.ribassato) ? `<div class="alert error">Il periodo fatturato della bolletta precede l'ultimo PUN/PSV mensile disponibile e il prezzo è variabile: la stima aggiorna il prezzo al mercato attuale e usa lo spread ${((l.spread_src || g.spread_src) === 'calcolato') ? 'REALE della tua bolletta (prezzo − dispacciamento − ' + ((l.ribassato && l.spread_src === 'calcolato') ? 'PUN' : 'PSV') + ' dei mesi coperti dalla bolletta (media PUN/PSV del periodo)' + ')'
-      : ((l.spread_src || g.spread_src) === 'bolletta') ? 'della bolletta (trafiletto condizioni)' : 'fittizio 0,03/0,15 (non scritto nella bolletta)'}${l.ribassato ? ` · luce: ${eurP(l.prezzo_storico_kwh) || ''}/kWh → <b>${eurP(l.prezzo_attuale_kwh)}/kWh</b>` : ''}${g.ribassato ? ` · gas: ${eurP(g.prezzo_storico_smc) || ''}/Smc → <b>${eurP(g.prezzo_attuale_smc)}/Smc</b>` : ''}. Il consulente conferma in call.</div>` : ''}
+    ${!(l.alla_cadenza || g.alla_cadenza) && (l.tipo_prezzo || g.tipo_prezzo || l.periodo || g.periodo) ? `<div class="alert info">Prezzo: <b>${[l.tipo_prezzo && 'luce ' + tipoPrezStr(l.tipo_prezzo), g.tipo_prezzo && 'gas ' + tipoPrezStr(g.tipo_prezzo)].filter(Boolean).join(' · ') || 'da verificare'}</b>${(l.periodo || g.periodo) ? ` · periodo fattura ${dF((l.periodo || g.periodo).dal)} – ${dF((l.periodo || g.periodo).al)}` : ''}.</div>` : ''}
+    ${(l.ribassato || g.ribassato) ? `<div class="alert info">Abbiamo aggiornato in automatico i prezzi PUN/PSV con l’ultimo prezzo variabile disponibile.</div>` : ''}
     <div class="alert info v6-solo-pc">Stima preliminare sulla parte energia: rete, trasporto e accise sono regolate da ARERA e invariate dal cambio gestore (si annullano nel confronto). IVA 10% o 22% stimata.</div>
-    ${avvisoPrezzoStimato(l, g)}
+    ${boxPrezzoNonLetto(l, g)}
     `;
 }
 function vStima(){ return vOfferte(); }   /* la vecchia schermata stima è ora LA pagina offerte (pagina unica) */
@@ -4751,7 +4827,7 @@ function vOfferte(){
   const al = (state.analisi || {}).luce || {}, ag = (state.analisi || {}).gas || {};
   const attuali = [al.prezzo_attuale_kwh ? 'luce attuale ' + eurP(al.prezzo_attuale_kwh) + '/kWh' : '', ag.prezzo_attuale_smc ? 'gas attuale ' + eurP(ag.prezzo_attuale_smc) + '/Smc' : ''].filter(Boolean).join(' · ');
   const subOfferte = attuali
-    ? 'In cima la CTE col <b>risparmio maggiore stimato sulla tua bolletta</b> (' + attuali + '). Stima sulla parte energia, IVA inclusa: si conferma prima della firma.'
+    ? ''
     : 'Condizioni correnti dei gestori, in trasparenza. Ti mostro le ' + Math.min(nMostrate, list.length) + ' più convenienti: se vuoi le vedi tutte. Nessuna stima personalizzata: è il lavoro del consulente, in call.';
   const isInt = state.utenza === 'internet';
   return `
@@ -4760,7 +4836,7 @@ function vOfferte(){
   ${stimaCorpo()}
   </div>
   <div class="anim">
-    <h1 class="title" style="margin-top:22px">Le offerte per compagnia</h1>
+    <h1 class="title v6-titolo-compatto" style="margin-top:22px">Le offerte per compagnia</h1>
     <p class="sub">${subOfferte}</p>
     <div class="hint">UNA card per compagnia con luce e gas integrati e il risparmio sommato. Solo l'essenziale: prezzo, durata, penali — tutti i dettagli su richiesta o in call.</div>
     ${pool.nota ? `<div class="alert info">${pool.nota}</div>` : ''}
@@ -4771,8 +4847,6 @@ function vOfferte(){
     <div class="offers-lg">
 ${list.map((o,ix)=>{
       const fP = list.findIndex(ox => ox.vincolo && ox.vincolo.penale);
-      const hz = (ix === 0 && fP > 0) ? '<div class="div-lg" style="grid-column:1/-1;font-weight:800;font-size:1.05rem;margin:2px 0 2px">✓ Le CTE con il maggiore risparmio <span style="color:var(--muted);font-weight:600;font-size:.8rem">senza penali di uscita</span></div>' : '';
-      const hc = (ix === fP) ? '<div class="div-lg" style="grid-column:1/-1;font-weight:800;font-size:1.05rem;margin:10px 0 2px">⚠ Le CTE con il maggiore risparmio <span style="color:var(--muted);font-weight:600;font-size:.8rem">ma con una penale se non viene rispettata la scadenza</span></div>' : '';
       const r = risparmioOfferta(o);
       const fuoriF = outFasci(o);
       const rStr = rispStr(r.tot_min_imp, r.tot_max_imp);
@@ -4788,7 +4862,7 @@ ${list.map((o,ix)=>{
       /* nota 39: la richiesta per QUESTA offerta è già avviata → i bottoni riprendono senza azzerare */
       const inCorso = sel && state.ordine && state.ordine.avviato
         && (cEff === '' ? normGest(state.ordine.gest) === normGest(gEff) : String(state.ordine.cte || '') === cEff);
-      return hz + hc + `
+      return `
     <div class="offer c-${(o.luce && o.gas) ? 'entrami' : (o.gas ? 'gas' : 'luce')}"${(best || sel) ? ' style="border:2px solid var(--primary);background:var(--primary-100)"' : ''}>
       <div class="head">
         <div class="name"${best ? ' style="font-size:1.2rem"' : ''}>${o.gestore}</div>
@@ -5050,13 +5124,14 @@ const slotPerTipo = tipo => (tipo === 'sede' ? SLOT_ORARI.slice(4) : SLOT_ORARI.
 function propostaGiornoAzienda(){ const g = giorniSlot(); return g[1] || g[0]; }
 
 function giorniSlot(){
+  /* nota 146o: anche OGGI — chi aderisce può prenotare la call per oggi stesso
+     (le fasce già passate vengono disattivate in pickGiorno) */
   const out = [];
   const d = new Date();
   while(out.length < 8){
-    d.setDate(d.getDate() + 1);
     const day = d.getDay();
-    if(day === 0 || day === 6) continue;   // solo giorni lavorativi
-    out.push(new Date(d));
+    if(day !== 0 && day !== 6) out.push(new Date(d));   // solo giorni lavorativi
+    d.setDate(d.getDate() + 1);
   }
   return out;
 }
@@ -5426,7 +5501,7 @@ function vPrenota(){
     ${CALENDAR_EMBED_URL ? `<iframe src="${CALENDAR_EMBED_URL}" style="border:0;width:100%;height:340px;border-radius:12px;margin-bottom:14px" loading="lazy"></iframe>
     <div class="hint" style="margin-bottom:14px">Nel calendario i blocchi = il consulente è occupato. Per la sua privacy non vediamo i dettagli dei suoi appuntamenti: guardi solo quando è libero.</div>` : ''}
     <div class="choices" style="grid-template-columns:1fr 1fr;display:grid">
-      ${giorni.map((g,i)=>`<button class="choice" style="padding:12px 14px ${state.prenota.giorno===i?';border-color:var(--primary);background:var(--primary-100)':''}" onclick="pickGiorno(${i})"><span class="txt"><strong>${fmtGiorno(g)}</strong></span></button>`).join('')}
+      ${giorni.map((g,i)=>`<button class="choice" style="padding:12px 14px ${state.prenota.giorno===i?';border-color:var(--primary);background:var(--primary-100)':''}" onclick="pickGiorno(${i})"><span class="txt"><strong>${fmtGiorno(g)}${g.toDateString() === new Date().toDateString() ? ' · oggi' : ''}</strong></span></button>`).join('')}
     </div>
 
     <div style="font-weight:700;margin:16px 0 10px">Orario preferito</div>
@@ -5464,24 +5539,39 @@ async function pickGiorno(i){
   state.prenota.fascia = '';
   delete state.prenota.slots;
   render('prenota');
+  /* nota 146o: mentre si consulta il calendario rassicuriamo il cliente */
+  const boxM = document.getElementById('slots');
+  if (boxM) boxM.innerHTML = '<div class="alert info" style="margin-top:0">🗓 Un attimo: verifichiamo gli orari disponibili sul calendario del consulente…</div>';
+  const ymd = giorniSlot()[i].toISOString().slice(0, 10);
+  /* se il giorno è OGGI le fasce già passate si disattivano (30 min di margine) */
+  const filtraFasceOggi = () => {
+    if (ymd !== new Date().toISOString().slice(0, 10)) return;
+    const adesso = new Date();
+    const lim = adesso.getHours() * 60 + adesso.getMinutes() + 30;
+    state.prenota.slots = (state.prenota.slots || []).map(s => {
+      const h = parseInt(String(s.slot).slice(0, 2), 10) || 0;
+      const m = parseInt(String(s.slot).slice(3, 5), 10) || 0;
+      return (h * 60 + m) < lim ? { slot: s.slot, libero: false } : s;
+    });
+  };
   if(TARIFFE_REGISTRO){                                  // versione pubblicata: le fasce si dimostrano dal canale Google
-    const ymd = giorniSlot()[i].toISOString().slice(0, 10);
+    const ymd2 = giorniSlot()[i].toISOString().slice(0, 10);
     try{
-      const r = await fetch(GOOGLE_SCRIPT_URL + '?mode=disponibilita&data=' + ymd, { cache: 'no-store' });
+      const r = await fetch(GOOGLE_SCRIPT_URL + '?mode=disponibilita&data=' + ymd2, { cache: 'no-store' });
       const j = await r.json();
       const occ = new Set((j && j.occupate) || []);
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: !occ.has(s) }));
       state.prenota.calSync = (j && j.calendario === 'si') ? true : ((j && j.calendario === 'errore') ? false : null);   /* nota 109 */
-      dlog('Call: ' + occ.size + ' fasce già prenotate per il ' + ymd.split('-').reverse().join('/'));
+      dlog('Call: ' + occ.size + ' fasce già prenotate per il ' + ymd2.split('-').reverse().join('/'));
     } catch(e){                                          // canale non raggiungibile: tutte libere (le confermi tu)
       state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: true }));
     }
+    filtraFasceOggi();
     render('prenota');
     return;
   }
   const box = $('#slots');
-  if(box) box.innerHTML = '<div class="alert info" style="margin-top:0">Controllo la disponibilità del consulente…</div>';
-  const ymd = giorniSlot()[i].toISOString().slice(0, 10);
+  if(box) box.innerHTML = '<div class="alert info" style="margin-top:0">🗓 Un attimo: verifichiamo gli orari disponibili sul calendario del consulente…</div>';
   try{
     const r = await fetch(CTE_WATCHER_URL + '/disponibilita?data=' + ymd);
     const j = await r.json();
@@ -5494,6 +5584,7 @@ async function pickGiorno(i){
     if(state.prenota.giorno !== i) return;
     state.prenota.slots = SLOT_ORARI.map(s => ({ slot: s, libero: true }));
   }
+  filtraFasceOggi();
   render('prenota');
 }
 function pickFascia(f){ state.prenota.fascia = f; render('prenota'); }
@@ -5629,8 +5720,10 @@ function ppDatiConosciuti(){
 }
 function vInvita(){
   showDock(true); markNav('invita');
+  setTimeout(function(){ try { ppAutoLinkDeb(); } catch (e) {} }, 400);
   const ppD = ppDatiConosciuti();
   const ppV = v => String(v || '').replace(/"/g, '&quot;');
+  const ppLinkOk = (() => { try { const p = JSON.parse(localStorage.getItem('ddm_pp_link') || 'null'); return !!(p && p.v); } catch (e) { return false; } })();
   return `
   <div class="anim">
     <h1 class="title">Conosci DDM Soluzioni</h1>
@@ -5640,41 +5733,30 @@ function vInvita(){
       <div style="font-size:.85rem;color:#7a4d00;margin-top:6px">Più amici e parenti fai conoscere il portale e più Buoni puoi accumulare (fino a 500 €: 25 segnalazioni).</div>
     </div>
     <div class="card" style="margin-top:16px;text-align:left">
-  <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">1 · Il tuo link personale (verificato)</div>
+  <div style="font-weight:800;font-size:1.05rem;margin:0 0 10px;color:var(--primary-600)">1 · Il tuo link personale e verificato</div>
+  <p class="note" style="margin:0 0 12px">Il tuo link è <b>personale e verificato</b>: se amici o parenti lo aprono e diventano clienti risparmiando sui loro contratti, guadagni <b>Buoni Amazon</b> — 20 € a cliente, fino a <b>500 €</b>. Lo invii quando vuoi via <b>WhatsApp</b> o <b>email</b>.</p>
   <div class="field-row">
-    <div class="field"><label class="fl" for="ppNome">Il tuo nome e cognome</label><input id="ppNome" placeholder="Es. Marco Rossi" value="${ppV(ppD.nome)}"></div>
-    <div class="field"><label class="fl" for="ppCell">Il tuo numero WhatsApp</label><input id="ppCell" type="tel" inputmode="tel" placeholder="Es. 349 1234567" value="${ppV(ppD.cell)}" oninput="rifAggiorna()"><div class="hint">Chi apre il tuo link è censito come segnalato da te per 12 mesi, anche senza lasciare i suoi dati.</div></div>
+    <div class="field"><label class="fl" for="ppNome">Il tuo nome e cognome</label><input id="ppNome" placeholder="Es. Marco Rossi" value="${ppV(ppD.nome)}" oninput="rifAggiorna(); ppAutoLinkDeb()"></div>
+    <div class="field"><label class="fl" for="ppCell">Il tuo numero WhatsApp</label><input id="ppCell" type="tel" inputmode="tel" placeholder="Es. 349 1234567" value="${ppV(ppD.cell)}" oninput="rifAggiorna(); ppAutoLinkDeb()"><div class="hint">Chi apre il tuo link è censito come segnalato da te per 12 mesi, anche senza lasciare i suoi dati.</div></div>
   </div>
-  <div class="field"><label class="fl" for="ppEmail">La tua email (ricevi il bonus)</label><input id="ppEmail" type="email" placeholder="La tua email (ricevi il bonus)" value="${ppV(ppD.email)}"><div class="hint">Ti avvisiamo via email quando qualcuno usa il tuo link: da lì richiederai il buono rispondendo alla mail.</div></div>
-  <button class="btn btn-primary" onclick="rifCreaLink()" style="margin-top:2px">🔗 Crea il tuo link verificato</button>
-<div class="hint" style="margin-top:6px">Il link è <b>il tuo</b>: lo registriamo nell'archivio su Google (nome, numero e email) con un codice segreto. Quando qualcuno apre il link e diventa cliente, sappiamo che è merito tuo e ti spetta il buono.</div>
-  <div id="ppLinkStato" style="margin-top:8px"></div>
+  <div class="field"><label class="fl" for="ppEmail">La tua email (ricevi il bonus)</label><input id="ppEmail" type="email" placeholder="La tua email (ricevi il bonus)" value="${ppV(ppD.email)}" oninput="ppAutoLinkDeb()"><div class="hint">Ti avvisiamo via email quando qualcuno usa il tuo link: da lì richiederai il buono rispondendo alla mail.</div></div>
+  ${ppLinkOk
+    ? '<div id="ppLinkStato" style="margin-top:8px"><div class="alert info" style="margin-top:0">✅ Il tuo link verificato è pronto e collegato al tuo numero — condividilo quando vuoi.</div></div>'
+    : '<div id="ppLinkStato" style="margin-top:8px"></div><div class="hint" style="margin-top:6px">Appena scrivi il tuo numero WhatsApp creiamo in automatico il tuo link verificato: è quello che traccia le segnalazioni e fa maturare il buono.</div>'}
   <div class="field"><label class="fl" for="ppLinkRif">Il tuo link da condividere</label><input readonly id="ppLinkRif" onclick="this.select()" value="${SITO_URL}"></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:2px">
-    <button class="btn btn-ghost" onclick="rifAggiorna(); copyRef(linkRifCorrente())">📋 Copia il link</button>
-    <button class="btn btn-ghost" onclick="shareRif()">📲 Inoltra ad altri su WhatsApp</button>
+    <button class="btn btn-primary" onclick="shareRif()">📲 Invia su WhatsApp ai tuoi amici, colleghi o gruppi!</button>
+    <button class="btn btn-ghost" onclick="mailRif()">✉️ Invia via email</button>
+    <button class="btn btn-ghost" onclick="rifAggiorna(); copyRef(linkRifCorrente())">📋 Copia</button>
   </div>
 </div>
 
 <div class="card" style="margin-top:14px;text-align:left">
-  <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">2 · Apri il link sul telefono e inoltralo a chi vuoi</div>
-  <p class="note" style="margin:0 0 10px">Il modo più comodo per inoltrarlo è <b>aprire il portale dal telefono</b>: il link resta salvato nel telefono e lo condividi con WhatsApp o email in un attimo.</p>
-  <div style="display:flex;gap:10px;flex-wrap:wrap">
-    <button class="btn btn-primary" onclick="selfSendRif()" style="flex:1;min-width:210px">📲 Mandami il link su WhatsApp</button>
-    <button class="btn btn-ghost" onclick="selfSendRifEmail()" style="flex:1;min-width:210px">✉️ Mandami il link via email</button>
+  <div style="font-weight:800;font-size:1.05rem;margin:0 0 6px;color:var(--primary-600)">2 · Invita gli amici via email</div>
+  <p class="note" style="margin:0 0 10px">Scrivi le loro email (anche cellulare): l'invito parte dall'ufficio e a te arriva in copia. Fino a 25 contatti per segnalazione.</p>
+  <div id="ppList" style="margin-top:2px">
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input class="ppIn" style="flex:1;padding:10px 12px;border:1px solid #d7dfea;border-radius:10px;font-size:.95rem;background:#fff" type="email" placeholder="Email amico o azienda #1" inputmode="email"></div>
   </div>
-  <p class="note" style="margin:6px 0 0">Se non hai numero o email a portata di mano, premi <b>📋 Copia il link</b> e incollalo dove vuoi.</p>
-</div>
-
-<div class="card" style="margin-top:14px;text-align:left">
-  <div style="font-weight:800;font-size:1.05rem;margin:0 0 8px;color:var(--primary-600)">3 · Invito via email (per noi)</div>
-  <p class="note" style="margin:0 0 10px">Ti basta la loro email: l'invito parte dall'ufficio e a te arriva in copia.</p>
-  <button class="btn btn-ghost" onclick="const e=document.getElementById('ppEmail'); if(e){ e.focus(); e.scrollIntoView({behavior:'smooth', block:'center'}); }" style="width:100%">✉️ Vai agli inviti email</button>
-</div>
-
-<div class="card" style="margin-top:14px;text-align:left">
-  <div style="font-weight:800;font-size:1.05rem;margin:0 0 12px;color:var(--primary-600)">4 · Le email dei tuoi amici (invio via ufficio)</div>
-  <div id="ppList" style="margin-top:2px"><input class="ppIn" style="width:100%" type="email" placeholder="Email amico #1"></div>
   <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
     <button class="btn btn-ghost" onclick="ppAggiungi()">+ Aggiungi una email (fino a 25)</button>
     <button class="btn btn-primary" onclick="ppInvia()">✉️ Invita per email via ufficio</button>
@@ -5823,15 +5905,34 @@ function shareRif(){
   const text = 'Ti segnalo DDM Soluzioni: carichi la bolletta e vedi subito le offerte luce e gas con il risparmio stimato. Gratis e senza impegno. ' + linkRifCorrente();
   window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
 }
+/* nota 146p: invio via email del link a chi vuoi (scelta del destinatario nel client di posta) */
+function mailRif(){
+  const link = linkRifCorrente();
+  const testo = 'Ti segnalo DDM Soluzioni: carichi la bolletta e vedi subito le offerte luce e gas con il risparmio stimato. Gratis e senza impegno.\n\n' + link + '\n\nDDM Soluzioni';
+  location.href = 'mailto:?subject=' + encodeURIComponent('DDM Soluzioni — guarda quanto puoi risparmiare sulla bolletta') + '&body=' + encodeURIComponent(testo);
+}
 function rifTag(){ const r = rifAttuale(); return r ? ' [rif:' + r + ']' : ''; }
+function ppTogli(btn){ const r = btn.closest('div'); const box = document.getElementById('ppList'); if (box && box.querySelectorAll('.ppIn').length > 1 && r) r.remove(); }
+/* nota 146q: il link verificato si crea DA SOLO appena c'è il numero WhatsApp — niente pulsante */
+let ppAutoTimer = null;
+function ppAutoLinkDeb(){ clearTimeout(ppAutoTimer); ppAutoTimer = setTimeout(ppAutoLink, 900); }
+async function ppAutoLink(){
+  const nome = ((document.getElementById('ppNome') || {}).value || '').trim();
+  const cell = rifChiave((document.getElementById('ppCell') || {}).value || '');
+  const email = ((document.getElementById('ppEmail') || {}).value || '').trim();
+  if (!cell || cell.length < 6) return;
+  try { const p = JSON.parse(localStorage.getItem('ddm_pp_link') || 'null'); if (p && p.v && p.cell === cell && (p.nome || '') === nome) return; } catch (e) {}
+  await rifCreaLink();
+}
 function ppAggiungi(){
   const box = document.getElementById('ppList');
   if(!box) return;
   const n = box.querySelectorAll('.ppIn').length;
   if(n >= PP_MAX){ alert('Massimo 25 contatti per segnalazione'); return; }
   const riga = document.createElement('div');
-  riga.style.marginTop = '6px';
-  riga.innerHTML = '<input class="ppIn" style="width:100%" placeholder="Email o cellulare amico #' + (n + 1) + '" inputmode="email">';
+  riga.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px';
+  riga.innerHTML = '<input class="ppIn" style="flex:1;padding:10px 12px;border:1px solid #d7dfea;border-radius:10px;font-size:.95rem;background:#fff" placeholder="Email amico o azienda #' + (n + 1) + '" inputmode="email">' +
+    '<button type="button" onclick="ppTogli(this)" style="border:1px solid #e3e8f0;background:#f4f6fa;border-radius:8px;padding:8px 10px;cursor:pointer;color:#5a6a80" title="Togli questa email">✕</button>';
   box.appendChild(riga);
 }
 async function ppInvia(){
