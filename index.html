@@ -350,6 +350,21 @@ table.summary.oneLine td{white-space:nowrap}
 .reviews:hover{border-color:#b7c6da}
 @media(max-width:700px){.reviews{gap:8px;padding:10px 12px;font-size:.82rem}.reviews .stars{font-size:.9rem;letter-spacing:1px}}
 </style>
+<style id="v6-verticale">
+/* nota 146z-septies: verticale senza scroll orizzontale */
+html,body{max-width:100%;overflow-x:hidden}
+.card,.offer,.anim{max-width:100%}
+.btn{max-width:100%}
+table.summary.oneLine td{white-space:normal}
+@media(max-width:700px){
+  .v6-analisi-head{padding-right:0 !important}
+  .v6-analisi-head .btn-back-top{position:static;margin-top:6px;display:inline-block}
+  /* nota 146z-octies: meno vuoto sopra ⚡🔥 */
+  .v6-home{padding:6px 0 !important}
+  .v6-home .v6-hero-icon{margin-bottom:2px !important}
+  .topbar-inner{padding:8px 12px}
+}
+</style>
 </head>
 <body>
 
@@ -4520,7 +4535,7 @@ function stimaCorpo(){
       ? 'Stima preliminare sui consumi medi di una famiglia: con la tua bolletta vera la stima si aggiusta da sola.'
       : 'Calcolata sui dati della tua bolletta e sulle condizioni in essere dei gestori. Si conferma prima della firma.';
   return `
-    <div style="position:relative;padding-right:150px">
+    <div class="v6-analisi-head" style="position:relative;padding-right:150px">
     <h1 class="title v6-solo-pc">La tua analisi preliminare</h1>
     ${(state.storia && state.storia.length) ? '<button class="btn-back-top" onclick="goBack()">← Torna indietro</button>' : ''}
   </div>
