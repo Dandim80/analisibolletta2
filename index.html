@@ -284,6 +284,13 @@ table.summary.oneLine td{white-space:nowrap}
   .v6-solo-pc{display:none}
 /* nota 146n: titolo offerte su una riga, frasi prezzo più piccole */
   .v6-titolo-compatto{font-size:1.05rem;white-space:nowrap;letter-spacing:-.3px}
+  /* nota 146z-ter: home compatta su telefono */
+  .v6-home{padding:18px 0 !important}
+  .v6-home .title{font-size:1.3rem;line-height:1.25}
+  .v6-home .sub{font-size:.88rem;margin-top:6px}
+  .v6-home .card{margin-top:12px !important;padding:14px !important}
+  .v6-home table.summary{margin-top:12px !important}
+  .v6-home table.summary td{padding:6px 8px !important;font-size:.85rem}
   .v6-testo-mini{font-size:.72rem;padding:5px 9px;line-height:1.35}
 
 /* nota 146: su cellulare i due riquadri (luce+gas) devono stare insieme nella pagina:
@@ -302,6 +309,47 @@ table.summary.oneLine td{white-space:nowrap}
   .topbar-inner > div:last-child .btn-link{padding:2px 6px;font-size:.85rem}
   .tagline{order:3;flex:0 0 100%;width:100%;margin-top:2px;text-align:center;white-space:normal;overflow:visible;font-size:.8rem;line-height:1.25;letter-spacing:0}
 }</style>
+<style id="v6-home-css">
+/* nota 146z-quater: home compatta e pulsante "Inizia ora" protagonista (PC + mobile) */
+.v6-home{padding:22px 0}
+.v6-home .v6-hero-icon{font-size:2.1rem !important;margin-bottom:8px}
+.v6-home .title{font-size:1.55rem;line-height:1.22}
+.v6-home .sub{font-size:.9rem;margin-top:6px}
+.v6-home .card{margin-top:14px;padding:16px}
+.v6-home .btn-primary{padding:15px 20px;font-size:1.08rem;font-weight:800;letter-spacing:.01em;box-shadow:0 8px 20px rgba(16,54,95,.22)}
+@media(max-width:700px){
+  .v6-home{padding:14px 0}
+  .v6-home .v6-hero-icon{font-size:1.7rem !important;margin-bottom:6px}
+  .v6-home .title{font-size:1.3rem}
+  .v6-home .sub{font-size:.85rem;margin-top:4px}
+  .v6-home .card{margin-top:10px;padding:13px}
+  .v6-home .btn-primary{padding:14px 16px;font-size:1.05rem}
+}
+/* nota 146z-quinquies: riempimento home (chip 3 passi + perche' conviene) */
+.v6-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.v6-chip{background:#f8fafd;border:1px solid var(--border);border-radius:12px;padding:10px 6px;text-align:center}
+.v6-chip span{display:block;font-size:1.25rem;line-height:1}
+.v6-chip b{display:block;font-size:.9rem;margin-top:4px;color:var(--text)}
+.v6-chip small{display:block;font-size:.72rem;color:var(--muted);margin-top:1px}
+.v6-perche{list-style:none;padding:0;margin:14px 0 0;text-align:left;display:grid;gap:7px}
+.v6-perche li{position:relative;padding-left:24px;font-size:.88rem;color:var(--muted);line-height:1.35}
+.v6-perche li:before{content:'✓';position:absolute;left:4px;top:0;color:var(--success);font-weight:800}
+@media(max-width:700px){
+  .v6-chips{gap:6px;margin-top:10px}
+  .v6-chip{padding:8px 4px}
+  .v6-chip span{font-size:1.1rem}
+  .v6-chip b{font-size:.82rem}
+  .v6-chip small{font-size:.66rem}
+  .v6-perche{margin-top:12px;gap:6px}
+  .v6-perche li{font-size:.82rem}
+}
+/* nota 146r-bis: recensioni Google ripristinate (PC + mobile) */
+.reviews{display:flex;align-items:center;gap:14px;margin-top:14px;padding:12px 14px;background:#fff;border:1px solid var(--border);border-radius:12px;color:var(--text);text-decoration:none;font-size:.9rem}
+.reviews .stars{color:var(--warning);font-size:1.05rem;letter-spacing:2px;white-space:nowrap}
+.reviews .arr{margin-left:auto;color:var(--muted)}
+.reviews:hover{border-color:#b7c6da}
+@media(max-width:700px){.reviews{gap:8px;padding:10px 12px;font-size:.82rem}.reviews .stars{font-size:.9rem;letter-spacing:1px}}
+</style>
 </head>
 <body>
 
@@ -675,25 +723,33 @@ async function autoFinale(){
 function vHome(){
   showDock(false);
   return `
-  <div class="anim" style="text-align:center;padding:36px 0">
-    <div style="font-size:3.4rem;margin-bottom:14px;letter-spacing:.15em">⚡<span style="font-size:.72em">🔥</span></div>
+  <div class="anim v6-home" style="text-align:center;padding:36px 0">
+    <div class="v6-hero-icon" style="font-size:3.4rem;margin-bottom:14px;letter-spacing:.15em">⚡<span style="font-size:.72em">🔥</span></div>
     <h1 class="title">In 3 click scopri quanto puoi risparmiare</h1>
     <p class="sub">Gratis, senza impegno — e con un consulente vero se vuoi un parere in più.</p>
     <div class="card" style="text-align:left">
       <button class="btn btn-primary" onclick="clearSession(); go('test')">Inizia ora — è gratis</button>
-      <div style="margin-top:10px"><button class="sc-link-mail" onclick="SCT.apri()">📧 Preferisci continuare da PC? Manda il link alla tua email</button></div>
-      <table class="summary oneLine" style="margin-top:18px">
-        <tr><td>1. Carica la bolletta</td><td>PDF o delle foto fatte bene della bolletta</td></tr>
-        <tr><td>2. Risparmio stimato</td><td>Ottieni subito il tuo risparmio stimato con le migliori offerte attuali!</td></tr>
-        <tr><td>3. Concludi il contratto</td><td>Alla fine puoi concludere direttamente il tuo nuovo contratto</td></tr>
-      </table>
+      <div style="margin-top:10px;text-align:center"><button class="sc-link-mail" onclick="SCT.apri()">📧 Hai le bollette sul PC? Manda il link alla tua email</button></div>
     </div>
-    <div class="card" style="margin-top:18px;text-align:center;padding:22px 18px;background:var(--primary-100);border-color:rgba(16,54,95,.14);box-shadow:none">
-      <div style="font-size:2rem;line-height:1">🤝</div>
-      <div style="font-family:var(--font-display);font-weight:800;font-size:1.4rem;letter-spacing:-.02em;color:var(--primary);margin-top:10px">LA CONDIVISIONE FA LA FORZA!</div>
-      <p style="margin:8px 0 0;color:var(--muted)">Niente pubblicità pagata: il nostro megafono sei <strong style="color:var(--text)">tu</strong>.</p>
-      <p style="margin:10px 0 0;font-weight:700;color:#16a34a">💪 La nostra forza è da sempre il passaparola: usa lo strumento,<br>poi condividilo con amici e parenti!<br><span style="color:var(--primary)">Grazie in anticipo dallo staff DDM Soluzioni.</span></p>
+    <div class="v6-chips">
+      <div class="v6-chip"><span>📄</span><b>Carichi</b><small>PDF o foto</small></div>
+      <div class="v6-chip"><span>📊</span><b>Confronti</b><small>offerte attuali</small></div>
+      <div class="v6-chip"><span>✅</span><b>Scegli</b><small>senza impegno</small></div>
     </div>
+    <ul class="v6-perche">
+      <li>Analisi del potenziale risparmio in base alle tue bollette e alle offerte attive</li>
+      <li>Offerte sempre aggiornate, prezzi chiari senza sorprese</li>
+      <li>Consulenza gratuita, senza costi di attivazione</li>
+      <li>Un consulente vero, se vuoi un parere in più</li>
+    </ul>
+    <a class="reviews" href="${REVIEWS_URL}" target="_blank" rel="noopener">
+      <span class="stars">★★★★★</span>
+      <span><strong>DDM Soluzioni</strong> — leggi le recensioni dei nostri clienti su Google</span>
+      <span class="arr">→</span>
+    </a>
+      
+    </div>
+    
     </div>`;
 }
 
@@ -3551,6 +3607,16 @@ async function inviaBollette(){
       toast(parti.length ? 'Bollette lette: i dettagli li chiudiamo insieme dopo la richiesta' : 'Bollette caricate: grazie!');
       proseguiDopoAnalisi();
     }
+    /* nota 146h: la richiesta viene dal portale → la registro (con il rif, se c'è)
+       per il controllo referral: solo queste pratiche danno diritto al buono */
+    try{
+      const az = (state.ordine && state.ordine.azienda) || {};
+      const d0 = state.dati || {};
+      fetch(GOOGLE_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ mode:'registra_referral', rif: rifAttuale() || '',
+          nome: d0.nome || az.ragione || az.nome || '', email: d0.email || '',
+          tel: d0.telefono || az.telefono || '', piva: az.piva || '', cf: az.cf || d0.cf || '' }) }).catch(function(){});
+    }catch(e){}
     return;
   }
   try{
