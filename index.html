@@ -262,13 +262,15 @@ table.summary.oneLine td{white-space:nowrap}
 @media (max-width:700px){
   body{font-size:15.5px}
   .specs{grid-template-columns:1fr !important;gap:6px}
-  .specs > div:nth-child(3),.specs > div:nth-child(4),.specs > div:nth-child(5),
-  .specs > div:nth-child(6),.specs > div:nth-child(7){display:none}
-  body.v6-dettagli .specs > div:nth-child(3),
-  body.v6-dettagli .specs > div:nth-child(4),
-  body.v6-dettagli .specs > div:nth-child(5),
-  body.v6-dettagli .specs > div:nth-child(6),
-  body.v6-dettagli .specs > div:nth-child(7){display:block}
+  /* nota 146f: nascondere i dettagli vale SOLO per il pannello analisi della
+     bolletta — NON per le card offerte, dove il prezzo GAS (4º blocco) spariva */
+  .pannello-materia .specs > div:nth-child(3),.pannello-materia .specs > div:nth-child(4),.pannello-materia .specs > div:nth-child(5),
+  .pannello-materia .specs > div:nth-child(6),.pannello-materia .specs > div:nth-child(7){display:none}
+  body.v6-dettagli .pannello-materia .specs > div:nth-child(3),
+  body.v6-dettagli .pannello-materia .specs > div:nth-child(4),
+  body.v6-dettagli .pannello-materia .specs > div:nth-child(5),
+  body.v6-dettagli .pannello-materia .specs > div:nth-child(6),
+  body.v6-dettagli .pannello-materia .specs > div:nth-child(7){display:block}
   .alert{padding:9px 11px;font-size:.88rem;line-height:1.4}
   .card{padding:12px;border-radius:12px}
   .hint{display:none}
@@ -277,6 +279,8 @@ table.summary.oneLine td{white-space:nowrap}
 }
 .v6-toggle{display:none;align-items:center;gap:6px;background:#eef4fb;border:1px solid #cfd8e6;color:#0c5a9e;border-radius:9px;padding:7px 11px;font-size:.85rem;font-weight:700;cursor:pointer;margin:6px 0}
 
+/* nota 146i: su cellulare spariscono titolo analisi e nota ARERA (troppo spazio) */
+  .v6-solo-pc{display:none}
 /* nota 146: su cellulare i due riquadri (luce+gas) devono stare insieme nella pagina:
    metà altezza, tutta larghezza, senza la riga "trascina qui" (da mobile non si trascina) */
 @media(max-width:700px){
@@ -2631,7 +2635,7 @@ async function ocrPdfBrowser(file, onProg){
          riprova sulle pagine successive; la più densa decide per TUTTO il
          documento (è sempre la stessa sessione di scansione, stessa rotazione) */
       if(rotK === 0 && Math.max(scDr, scRt, scH, scQ) < 8){
-        const npr = Math.min(4, doc ? doc.numPages : Math.max(1, (JPR && JPR.length) || 0));
+        const npr = Math.min(mobOcr ? 2 : 4, doc ? doc.numPages : Math.max(1, (JPR && JPR.length) || 0));
         for(let pp = 2; pp <= npr && rotK === 0; pp++){
           try{
             let cvX = null;
@@ -2666,15 +2670,17 @@ async function ocrPdfBrowser(file, onProg){
       else { ocrLog('probe: resta dritta (punti ' + scRt + ' vs ' + scDr + (scH || scQ ? '; 180° ' + scH + ', +90° ' + scQ : '') + ')'); }
     }
   } catch{}
-  const np = doc ? Math.min(doc.numPages, 12) : Math.max(1, Math.min((JPR && JPR.length) || 0, 12));
+  const np = doc ? Math.min(doc.numPages, 6) : Math.max(1, Math.min((JPR && JPR.length) || 0, 6));   /* nota 146l: 6 pagine bastano, su telefono 12 erano un massimo */
 
   if(!doc && !(JPR && JPR.length)) return { text: '', pages: 0, errori: ['file://: PDF senza JPEG estrattibili'] };
+  /* nota 146l: telefono = scala e parallelismo ridotti (il cellulare non regge 3 worker a 8MP) */
+  const mobOcr = (() => { try { return matchMedia('(max-width:700px)').matches; } catch (e) { return false; } })();
   const pezzi = new Array(np).fill(''), errori = [];
   const task = [];
   for(let i = 1; i <= np; i++) task.push(i);
   /* nota 36: anche su file:// 3 pagine in parallelo — i worker autonomi
      (creaWorkerOcrFile) sono worker VERI (fino a 4 nel pool, uno per pagina) */
-  const PAR = Math.min(3, np);
+  const PAR = Math.min(mobOcr ? 2 : 3, np);
   const miei = [];
   for(let i = 0; i < PAR; i++){
     try{ miei.push(POOL_OCR.pop() || await creaWorkerOcrSalute()); }
@@ -2693,7 +2699,7 @@ async function ocrPdfBrowser(file, onProg){
       // scansioni piccole/squate: senza abbastanza pixel l'OCR inventa: scala alta (cap ~2600px)
       /* file://: OCR nel main thread (una pagina alla volta) → scala più bassa (cap 1800px):
          stessa qualità di lettura a un_terzo del tempo, altrimenti sembra bloccato */
-      const scK = Math.min(4, 2600 / Math.max(1, vp0.width));
+      const scK = Math.min(4, 1800 / Math.max(1, vp0.width));   /* nota 146m: 1800px per tutti — il watcher a risoluzione bassa legge le stesse scansioni in 18s/4 pagine; a 2600px il browser sembrava congelato */
       const cn = document.createElement('canvas');
       let rr = null;
       if(!pg){
@@ -4372,7 +4378,7 @@ function stimaCorpo(){
       : 'Calcolata sui dati della tua bolletta e sulle condizioni in essere dei gestori. Si conferma prima della firma.';
   return `
     <div style="position:relative;padding-right:150px">
-    <h1 class="title">La tua analisi preliminare</h1>
+    <h1 class="title v6-solo-pc">La tua analisi preliminare</h1>
     ${(state.storia && state.storia.length) ? '<button class="btn-back-top" onclick="goBack()">← Torna indietro</button>' : ''}
   </div>
     <p class="sub">${subTxt}</p>
@@ -4424,7 +4430,7 @@ function stimaCorpo(){
     ${!(l.alla_cadenza || g.alla_cadenza) && (l.tipo_prezzo || g.tipo_prezzo || l.periodo || g.periodo) ? `<div class="alert info">Prezzo: <b>${[l.tipo_prezzo && 'luce ' + tipoPrezStr(l.tipo_prezzo), g.tipo_prezzo && 'gas ' + tipoPrezStr(g.tipo_prezzo)].filter(Boolean).join(' · ') || 'da confermare in call'}</b>${(l.periodo || g.periodo) ? ` · periodo fattura ${dF((l.periodo || g.periodo).dal)} – ${dF((l.periodo || g.periodo).al)}` : ''}.</div>` : ''}
     ${(l.ribassato || g.ribassato) ? `<div class="alert error">Il periodo fatturato della bolletta precede l'ultimo PUN/PSV mensile disponibile e il prezzo è variabile: la stima aggiorna il prezzo al mercato attuale e usa lo spread ${((l.spread_src || g.spread_src) === 'calcolato') ? 'REALE della tua bolletta (prezzo − dispacciamento − ' + ((l.ribassato && l.spread_src === 'calcolato') ? 'PUN' : 'PSV') + ' dei mesi coperti dalla bolletta (media PUN/PSV del periodo)' + ')'
       : ((l.spread_src || g.spread_src) === 'bolletta') ? 'della bolletta (trafiletto condizioni)' : 'fittizio 0,03/0,15 (non scritto nella bolletta)'}${l.ribassato ? ` · luce: ${eurP(l.prezzo_storico_kwh) || ''}/kWh → <b>${eurP(l.prezzo_attuale_kwh)}/kWh</b>` : ''}${g.ribassato ? ` · gas: ${eurP(g.prezzo_storico_smc) || ''}/Smc → <b>${eurP(g.prezzo_attuale_smc)}/Smc</b>` : ''}. Il consulente conferma in call.</div>` : ''}
-    <div class="alert info">Stima preliminare sulla parte energia: rete, trasporto e accise sono regolate da ARERA e invariate dal cambio gestore (si annullano nel confronto). IVA 10% o 22% stimata.</div>
+    <div class="alert info v6-solo-pc">Stima preliminare sulla parte energia: rete, trasporto e accise sono regolate da ARERA e invariate dal cambio gestore (si annullano nel confronto). IVA 10% o 22% stimata.</div>
     ${avvisoPrezzoStimato(l, g)}
     `;
 }
@@ -4493,7 +4499,7 @@ function offertePerGestore(){
       mistoGas: gasBest.mistoGas,
       gasPsvMedio: gasBest.gasPsvMedio, gasPsvMese: gasBest.gasPsvMese,
       gasScontato: gasBest.gasScontato, gasRid: gasBest.gasRid, pctG: gasBest.pctG, pctDomG: gasBest.pctDomG,
-      quotaFissaGas: gasBest.quotaFisseGas, quota_fisse_gas: gasBest.quota_fisse_gas, fasciaGas: gasBest.fasciaGas
+      quotaFissaGas: gasBest.quotaFissaGas, quota_fisse_gas: gasBest.quota_fisse_gas, fasciaGas: gasBest.fasciaGas
     });
     /* nota 44: card luce+gas → il vincolo mostrato è quello della materia che lo
        dichiara (es. luce con penale 4 €/mese e gas senza): prima restava quello
