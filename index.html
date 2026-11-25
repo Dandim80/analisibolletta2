@@ -6295,7 +6295,8 @@ async function sendContact(){
 /* riga passaparola nelle email: portiamo il cliente a condividere il servizio con amici e parenti */
 function ppRigaEmail(){
   const c = rifAttuale();
-  if(c) return '💡 Conosci amici o parenti a cui può interessare? Condividi il servizio con il TUO link personale: ' + SITO_URL + '?rif=' + c + ' — è il tuo link, noi teniamo traccia di chi fa un nuovo contratto grazie a te e ti ricompensiamo (20 € di bonus Amazon per ogni amico che diventa cliente, fino a 500 €).';
+  /* nota 146h: link referral COMPLETO (con token &v=): prima mancava e non era verificato */
+  if(c) return '💡 Conosci amici o parenti a cui può interessare? Condividi il servizio con il TUO link personale: ' + linkRif(c) + ' — è il tuo link, noi teniamo traccia di chi fa un nuovo contratto grazie a te e ti ricompensiamo (20 € di bonus Amazon per ogni amico che diventa cliente, fino a 500 €).';
   return '💡 Conosci amici o parenti a cui può interessare? Condividi il servizio: ' + SITO_URL + ' — per ogni amico che diventa cliente ricevi 20 € di bonus Amazon (fino a 500 €).';
 }
 
