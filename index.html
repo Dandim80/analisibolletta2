@@ -468,7 +468,7 @@ const state = {
   fornitori: [],          // tutti i gestori attuali rilevati dalle bollette (luce + gas)
   storia: [],             // navigazione: per il pulsante "Torna indietro"
   test: { spesa: '' },
-  consumiAzienda: { luce: '', gas: '' },   // kWh/anno e Smc/anno inseriti a mano
+  consumiAzienda: { luce: '', gas: '', prezzoLuce: '', prezzoGas: '' },   // consumi e prezzi letti in bolletta, inseriti a mano
   prenota: { giorno: null, fascia: '' },
   dati: { nome:'', email:'', telefono:'' },
   offertaScelta: null,
@@ -991,12 +991,18 @@ if(!best || sc < best.sc) best = { sc, dom, o, np: np2 };
 function stimeLocali(consumi){
   const azienda = state.cliente === 'azienda';
   const pm = PREZZI_MERCATO || { pun_eur_kwh: 0.198, psv_eur_smc: 0.843, mese: '' };
-  const attualeKwh = pm.pun_eur_kwh > 0 ? Math.round((pm.pun_eur_kwh + 0.03) * 1e4) / 1e4 : 0;
-  const attualeSmc = pm.psv_eur_smc > 0 ? Math.round((pm.psv_eur_smc + 0.15) * 1e4) / 1e4 : 0;
+  const mercatoKwh = pm.pun_eur_kwh > 0 ? Math.round((pm.pun_eur_kwh + 0.03) * 1e4) / 1e4 : 0;
+  const mercatoSmc = pm.psv_eur_smc > 0 ? Math.round((pm.psv_eur_smc + 0.15) * 1e4) / 1e4 : 0;
+  /* nota 146z: il cliente puo' scrivere il prezzo letto in bolletta (o che conosce);
+     se non lo scrive resta il prezzo di mercato, marcato come stimato per il riquadro */
+  const utenteKwh = Math.max(0, Number(consumi && consumi.prezzoLuce) || 0);
+  const utenteSmc = Math.max(0, Number(consumi && consumi.prezzoGas) || 0);
+  const attualeKwh = utenteKwh > 0 ? Math.round(utenteKwh * 1e4) / 1e4 : mercatoKwh;
+  const attualeSmc = utenteSmc > 0 ? Math.round(utenteSmc * 1e4) / 1e4 : mercatoSmc;
   const kwhAnno = state.utenza === 'gas' ? 0 : (Math.max(0, Math.round(Number(consumi.luce) || 0)) || (azienda ? 0 : 2700));
   const smcAnno = state.utenza === 'luce' ? 0 : (Math.max(0, Math.round(Number(consumi.gas) || 0)) || (azienda ? 0 : 1400));
-  const luce = kwhAnno ? { consumo_anno: kwhAnno, prezzo_attuale_kwh: attualeKwh, pod: '', potenza: Math.max(0, Number(consumi.potenza) || 0), tipo_prezzo: '', periodo: null, scadenza_contratto: '', contratto_stato: '', consumi_stimati: true, stimato: !azienda } : null;
-  const gas = smcAnno ? { consumo_anno: smcAnno, prezzo_attuale_smc: attualeSmc, pdr: '', tipo_prezzo: '', periodo: null, scadenza_contratto: '', contratto_stato: '', consumi_stimati: true, stimato: !azienda } : null;
+  const luce = kwhAnno ? { consumo_anno: kwhAnno, prezzo_attuale_kwh: attualeKwh, prezzo_stimato_mercato: !(utenteKwh > 0), pod: '', potenza: Math.max(0, Number(consumi.potenza) || 0), tipo_prezzo: '', periodo: null, scadenza_contratto: '', contratto_stato: '', consumi_stimati: true, stimato: !azienda } : null;
+  const gas = smcAnno ? { consumo_anno: smcAnno, prezzo_attuale_smc: attualeSmc, prezzo_stimato_mercato: !(utenteSmc > 0), pdr: '', tipo_prezzo: '', periodo: null, scadenza_contratto: '', contratto_stato: '', consumi_stimati: true, stimato: !azienda } : null;
   const d = { attuale_kwh: attualeKwh, kwh_anno: kwhAnno, attuale_smc: attualeSmc, smc_anno: smcAnno };
   const stime = stimeDi(d, [...(state.fornitori || []), state.fornitore].filter(Boolean), state.cliente);
   return {
@@ -3488,7 +3494,7 @@ async function aiRileggiDatiMancanti(parti){
 
 async function postStima(consumi){
   $('#upErr').innerHTML = '<div class="alert info">Calcolo il potenziale di risparmio…</div>';
-  if(TARIFFE_REGISTRO || !CTE_WATCHER_URL){          // versione pubblicata: i calcoli girano qui
+  if(TARIFFE_REGISTRO || !CTE_WATCHER_URL || consumi.prezzoLuce || consumi.prezzoGas){   // versione pubblicata (o prezzo scritto dal cliente): i calcoli girano qui
     const analisi = stimeLocali(consumi);
     state.analisi = analisi;
     if(analisi.stime.length) go('offerte-view');
@@ -4022,7 +4028,23 @@ async function rinfrescaFrigo(){
        disabilitato del client PRIMA di mappare il registro, così le CTE spente
        dall'ufficio spariscono subito anche dove il registro locale è congelato */
     const disF = j.disabilitate || {};
-    Object.keys(disF).forEach(k => { if(disF[k]) DISABILITATE_V43[k] = true; });
+    /* nota 146aa: l'elenco del frigo e' quello buono e SOSTITUISCE quello incorporato
+       nel build: un'offerta riattivata da gestione-offerte torna visibile anche nelle
+       copie gia' distribuite. Le chiavi si riconducono al gestore canonico in
+       maiuscolo (disKnV43), che e' come le cerca disEntryV43: "Eni|gas|..." da solo
+       non matchava mai. Se il frigo non porta l'elenco restano quelle del build. */
+    if(j.disabilitate && typeof j.disabilitate === 'object'){
+      Object.keys(DISABILITATE_V43).forEach(k => { delete DISABILITATE_V43[k]; });
+    }
+    Object.keys(disF).forEach(k => {
+      if(!disF[k]) return;
+      const iB = k.indexOf('|');
+      const ckB = iB > 0 ? disKnV43(k.slice(0, iB)) + k.slice(iB) : k;
+      DISABILITATE_V43[ckB] = true;
+      /* una CTE luce+gas ha un interruttore solo: vale per entrambe le materie */
+      const pB = ckB.split('|');
+      if(pB.length === 3 && (pB[1] === 'luce' || pB[1] === 'gas')) DISABILITATE_V43[pB[0] + '|' + (pB[1] === 'luce' ? 'gas' : 'luce') + '|' + pB.slice(2).join('|')] = true;
+    });
     const m = mappaRegistro(j.registro);
     if(m && m.tariffe){ TARIFFE = m.tariffe; state.regAggiornato = (j.registro && j.registro.aggiornato) || state.regAggiornato; dlog('Frigo ok: ' + Object.keys(m.tariffe).length + ' gestori aggiornati (censito ' + String(state.regAggiornato || '').slice(0, 10) + ')' + (m.scadute_escluse ? ' — ' + m.scadute_escluse + ' CTE scadute escluse' : '') + ')'); }
     if(j.prezzi && j.prezzi.pun_eur_kwh){ PREZZI_MERCATO = j.prezzi; dlog('Frigo ok: PUN ' + j.prezzi.pun_eur_kwh.toFixed(4) + ' €/kWh (' + j.prezzi.mese + ')'); }
@@ -4473,8 +4495,13 @@ function boxPrezzoNonLetto(l, g){
     + '<input id="pnl-' + m + '" inputmode="decimal" placeholder="' + (m === 'luce' ? 'Prezzo luce €/kWh, es. 0,138' : 'Prezzo gas €/Smc, es. 0,84') + '" style="flex:1;min-width:0;padding:7px 9px;border:1px solid #cfd8e6;border-radius:8px;font-size:.9rem">'
     + '</div>'
     + '<div style="margin:3px 0 0;font-size:.68rem;line-height:1.3;opacity:.8">' + hintRigaPrezzo(m) + '</div>';
+  const senzaBol = !!(state.analisi && state.analisi.senza_bolletta);
+  const titoloBox = senzaBol ? ('Prezzo ' + campi.join(' e ') + ' di mercato') : ('Prezzo ' + campi.join(' e ') + ' non letto');
+  const spiegaBox = senzaBol
+    ? 'Per la stima abbiamo usato il prezzo variabile di mercato (PUN/PSV + spread). Se conosci il prezzo della tua bolletta, scrivilo qui e rifai il calcolo.'
+    : 'per la stima abbiamo usato il prezzo variabile di mercato (PUN/PSV + spread). Se lo trovi in bolletta, scrivilo qui e rifai il calcolo.';
   return '<div id="pnlBox" style="background:#eef4fb;border:1px solid #cfd8e6;border-radius:10px;padding:9px 11px;margin-top:12px">'
-    + '<div style="font-size:.86rem"><b>Prezzo ' + campi.join(' e ') + ' non letto</b>: per la stima abbiamo usato il prezzo variabile di mercato (PUN/PSV + spread). Se lo trovi in bolletta, scrivilo qui e rifai il calcolo.</div>'
+    + '<div style="font-size:.86rem"><b>' + titoloBox + '</b>: ' + spiegaBox + '</div>'
     + campi.map(campo).join('')
     + '<div id="pnlErr"></div>'
     + '<button class="btn btn-primary" style="margin-top:8px;padding:6px 14px;font-size:.85rem" onclick="ricalcolaPrezzoManuale()">Ricalcola</button>'
@@ -5048,6 +5075,14 @@ function vConsumiAzienda(){
       <input id="cGas" type="number" min="0" inputmode="numeric" placeholder="es. 8000" value="${c.gas || ''}" oninput="state.consumiAzienda.gas=this.value"></div>
     <div class="field"><label class="fl" for="cPot">Potenza disponibile contatore (kW) — solo luce</label>
       <input id="cPot" type="number" min="0" step="0.1" inputmode="decimal" placeholder="es. 30" value="${c.potenza || ''}" oninput="state.consumiAzienda.potenza=this.value"></div>
+    <div class="field-row">
+      <div class="field"><label class="fl" for="cPL">Prezzo luce in bolletta (€/kWh) — facoltativo</label>
+        <input id="cPL" inputmode="decimal" placeholder="es. 0,138" value="${c.prezzoLuce || ''}" oninput="state.consumiAzienda.prezzoLuce=this.value">
+        <div class="hint">Riga «di cui spesa per la vendita»: se lo scrivi la stima del risparmio è precisa.</div></div>
+      <div class="field"><label class="fl" for="cPG">Prezzo gas in bolletta (€/Smc) — facoltativo</label>
+        <input id="cPG" inputmode="decimal" placeholder="es. 0,84" value="${c.prezzoGas || ''}" oninput="state.consumiAzienda.prezzoGas=this.value">
+        <div class="hint">Riga «prezzo unitario medio» o «di cui vendita».</div></div>
+    </div>
     <div class="hint">Li trovi fatture passate o sul gestore. La potenza è la "potenza impegnata" nella tua bolletta: molte offerte azienda valgono solo per certe fasce (es. 25–50 kW). Se non li hai: prenota la call, li recuperiamo insieme.</div>
 
     <div id="upErr"></div>
@@ -5061,11 +5096,15 @@ function vConsumiAzienda(){
 function stimaConsumiAzienda(){
   const c = state.consumiAzienda;
   const l = Number(c.luce) || 0, g = Number(c.gas) || 0;
+  const numIt = v => { const x = nDe(String(v == null ? '' : v).trim().replace(/\s/g, '')); return isFinite(x) ? x : 0; };
+  const pL = numIt(c.prezzoLuce), pG = numIt(c.prezzoGas);
+  if(pL && (pL < 0.05 || pL > 3)){ $('#upErr').innerHTML = '<div class="alert error">Il prezzo luce sembra fuori misura (' + pL + ' €/kWh): controlla virgola e unità.</div>'; return; }
+  if(pG && (pG < 0.25 || pG > 3)){ $('#upErr').innerHTML = '<div class="alert error">Il prezzo gas sembra fuori misura (' + pG + ' €/Smc): controlla virgola e unità.</div>'; return; }
   if(!l && !g){
     $('#upErr').innerHTML = '<div class="alert error">Inserisci almeno un consumo (kWh o Smc), oppure prenota direttamente la call.</div>';
     return;
   }
-  postStima({ luce: l, gas: g, potenza: Number(c.potenza) || 0 });
+  postStima({ luce: l, gas: g, potenza: Number(c.potenza) || 0, prezzoLuce: pL, prezzoGas: pG });
 }
 
 /* ---------------- DATI MANCANTI GUIDATI ----------------
@@ -6112,8 +6151,12 @@ async function inviaViaGoogle(oggetto, corpo, dest, extra){
     if(extra) Object.assign(payload, extra);   // meta prenotazione (data/fascia/nome): salvarlo lato Google
     /* allegatiExtra: file generati (es. PDA compilato) — verso ufficio si aggiungono
        alle bollette; verso il cliente (riepilogo) viaggiano come campo dedicato */
+    /* nota 146aa: i file GENERATI (PDA o check-list, privacy, CTE) vengono PRIMA delle
+       bollette: con 6 o piu' bollette caricate il vecchio ordine tagliava la CTE (e con
+       8 anche privacy o modulo), che per l'ufficio sono gli allegati essenziali */
     if(extra && Array.isArray(extra.allegatiExtra) && extra.allegatiExtra.length && !dest){
-      payload.bollette = Array.isArray(payload.bollette) ? payload.bollette.concat(extra.allegatiExtra.slice(0, 8 - payload.bollette.length)) : extra.allegatiExtra.slice(0, 8);
+      const generati = extra.allegatiExtra.slice(0, 8);
+      payload.bollette = generati.concat((Array.isArray(payload.bollette) ? payload.bollette : []).slice(0, Math.max(0, 8 - generati.length)));
       delete payload.allegatiExtra;
     }
     await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
@@ -8253,7 +8296,7 @@ function vSuite(){
   return `<div class="anim">
     <div class="card">
       <div style="font-size:1.5rem;font-weight:700">🧪 Suite di test completa</div>
-      <p class="sub">Esercita tutte le funzioni su bollette REALI Eni Plenitude del corpus «bollette esempio»: registro CTE, parsing, analisi + offerte, wizard adesione, PDA compilato e verificato, finalizzazione e prenotazione demo. Serve il watcher attivo (porta 5177).</p>
+      <p class="sub">Esercita tutte le funzioni su bollette REALI Eni Plenitude del corpus «bollette esempio»: registro CTE, parsing, analisi + offerte, wizard adesione, PDA Eni/EstEnergy, finalizzazione e prenotazione demo. In più (nota 146z): moduli e check-list per TUTTI gli operatori, email ufficio/cliente sui due canali, passaparola con link verificato, prezzo manuale letto in bolletta (privati e aziende), AI bolletta e contratti validati del registro. Serve il watcher attivo (porta 5177).</p>
       <label style="display:flex;gap:8px;align-items:flex-start;font-size:.85rem;margin:10px 0">
         <input type="checkbox" id="suiteReale" style="margin-top:3px">
         <span>⚠ Invio email REALE (default OFF: dry-run — le fetch verso Google Script vengono intercettate e mostrate qui, nessuna email parte)</span>
@@ -8292,6 +8335,54 @@ async function suiteEsegui(){
   render('suite');
 }
 function suiteResetVista(){ SUITE_RES = []; window.__suitePda = []; suiteRender(); }
+
+/* =============================================================
+   SUITE 146z — helper per i test nuovi: tutti gli operatori,
+   check-list, email, passaparola, prezzo manuale, AI, contratti.
+   ============================================================= */
+function suiteOggi(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function suiteRegistro(){ return (typeof TARIFFE_REGISTRO !== 'undefined' && TARIFFE_REGISTRO && TARIFFE_REGISTRO.gestori) || {}; }
+function suiteVociGestore(g){
+  const gg = suiteRegistro()[g] || {};
+  return [gg.luce, gg.gas].concat(gg.altre || []).filter(Boolean);
+}
+function suiteValida(rec, g){
+  if(!rec || !rec.cte) return false;
+  if((rec.stato || 'valida') !== 'valida') return false;
+  const fine = rec.valida_fino || (rec.vincolo && rec.vincolo.fino) || '';
+  if(fine && fine < suiteOggi()) return false;
+  const dis = (typeof DISABILITATE_V43 !== 'undefined' && DISABILITATE_V43) || {};
+  if(typeof disEntryV43 === 'function' && disEntryV43(dis, [g, gestRealeLabelV43(g, rec.cte)], rec)) return false;
+  return true;
+}
+function suiteRigheOperatori(){
+  const out = [];
+  const reg = suiteRegistro();
+  for(const g of Object.keys(reg)){
+    for(const r of suiteVociGestore(g)){
+      if(suiteValida(r, g)) out.push({ g: g, r: r });
+    }
+  }
+  return out;
+}
+function suiteScegli(g, r){
+  state.fornitoreScelto = g;
+  state.offertaSceltaCte = r.cte;
+  state.offertaScelta = String(r.cte).replace(/-CTE-\d{4}-\d{2}-\d{2}\.pdf$/i, '');
+}
+/* nota 146aa: si guarda il DOM renderizzato, non innerHTML: dentro body c'e' anche il
+   sorgente della suite, quindi una stringa come 'pnlBox' e' SEMPRE presente */
+function suiteEval(html, id){
+  return !!document.getElementById(id);
+}
+function suiteBottone(selettore, testo){
+  const el = document.querySelector(selettore);
+  return !!el && String(el.textContent || '').indexOf(testo) >= 0;
+}
+
 
 async function suiteCorpo(reale){
   /* la v4.3 si apre anche da file:// o da un'altra porta (il watcher pubblica
@@ -8505,7 +8596,10 @@ async function suiteCorpo(reale){
     if(reale){
       suiteItem(g6, 'Finalizzazione eseguita con invio REALE: controlla la casella di posta', true);
     } else {
-      const c0 = capt[0] || {}, c1 = capt[1] || {};
+      /* nota 146aa: i payload si cercano PER TIPO. Prima di queste email parte anche il
+         salvataggio della sessione su Google: con l'indice fisso si leggeva quello */
+      const c0 = capt.find(c => c && c.tipo === 'richiesta_attivazione') || {};
+      const c1 = capt.find(c => c && c.tipo === 'riepilogo') || {};
       suiteItem(g6, 'Email ufficio: «' + String(c0.oggetto || '').slice(0, 70) + '»', capt.length >= 1);
       const pdaIn = ((c0.bollette || []) || []).find(x => /PDA/i.test(x.nome || ''));
       suiteItem(g6, 'Payload ufficio: tipo richiesta_attivazione + PDA allegato (bollette totali: ' + ((c0.bollette || []).length) + ')', c0.tipo === 'richiesta_attivazione' && !!pdaIn, pdaIn ? pdaIn.nome : 'PDA mancante');
@@ -8553,9 +8647,15 @@ async function suiteCorpo(reale){
   if(selMod === 'eni'){
     suiteItem(g8, 'Gruppo saltato: nel menu hai scelto solo Eni Plenitude', true);
   } else try{
+    /* nota 146aa: la CTE Est si prende DAL REGISTRO (la prima luce consumer valida
+       oggi). Il nome fisso V54 non esisteva piu' e il dispatcher, per fallback, dava
+       il modulo Eni (fornitoreScelto era rimasto quello del gruppo 4) */
+    const estVoci8 = suiteRigheOperatori().filter(x => x.g === 'Est Energy' && x.r.tipo === 'luce' && (x.r.cluster || 'consumer') !== 'business');
+    if(!estVoci8.length) throw new Error('nessuna CTE Est Energy luce consumer valida oggi nel registro');
     state.fornitore = 'Est Energy';
-    state.offertaScelta = 'EST PIU CONTROLLO FLAT CASA';
-    state.offertaSceltaCte = 'EST ENERGY RES - CTE_EST_PIU_CONTROLLO_FLAT_CASA_GAS__V54-CTE-2026-11-10.pdf';
+    state.fornitoreScelto = 'Est Energy';
+    state.offertaScelta = String(estVoci8[0].r.cte).replace(/-CTE-\d{4}-\d{2}-\d{2}\.pdf$/i, '');
+    state.offertaSceltaCte = estVoci8[0].r.cte;
     const o = state.ordine;
     const r1 = await compilaPda();
     suiteItem(g8, 'Dispatcher: la CTE Est d\u2019il modulo Est (' + (r1.nomeFile || '?') + ')', /est/i.test(r1.nomeFile || ''));
@@ -8605,6 +8705,286 @@ async function suiteCorpo(reale){
     window.__suitePda.push({ nome: 'PDA-est-privacy-test.pdf', base64: rPp });
   }catch(e){ suiteItem(g9, 'Errore: ' + String(e && e.message || e).slice(0, 120), false); }
   suiteFine(g9);
+
+  /* ---------- 10 · Moduli e check-list per TUTTI gli operatori ---------- */
+  const g10 = suiteGruppo('10 · Moduli e check-list per TUTTI gli operatori');
+  try{
+    const gestori10 = Object.keys(suiteRegistro());
+    const righe10 = suiteRigheOperatori();
+    const perG10 = {};
+    for(const x of righe10){ (perG10[x.g] = perG10[x.g] || []).push(x.r); }
+    suiteItem(g10, 'Operatori nel registro: ' + gestori10.length, gestori10.length >= 20);
+    /* nota 146aa: non tutti gli operatori hanno oggi una CTE valida (scadute) o sono
+       spenti dall'ufficio: si ELENCANO, non sono un errore della suite */
+    const dis10 = (typeof DISABILITATE_V43 !== 'undefined' && DISABILITATE_V43) || {};
+    const spenti10 = gestori10.filter(g => !perG10[g] && dis10[disKnV43(g) + '|*']);
+    const senzaCte10 = gestori10.filter(g => !perG10[g] && !dis10[disKnV43(g) + '|*']);
+    suiteItem(g10, 'Operatori con almeno una CTE valida oggi: ' + Object.keys(perG10).length + '/' + gestori10.length, Object.keys(perG10).length >= 5,
+      (spenti10.length ? 'spenti da gestione-offerte: ' + spenti10.join(', ') + ' · ' : '') + (senzaCte10.length ? 'senza CTE valida (scadute o non censite): ' + senzaCte10.join(', ') : 'nessuno escluso'));
+    state.ordine.azienda = state.ordine.azienda || {};
+    Object.assign(state.ordine.azienda, { ragioneSociale: 'TEST SRL', piva: '01234567890', cf: '01234567890', sede: 'Via Test 1', cap: '20121', comune: 'Milano', provincia: 'MI', pec: 'test@pec.it', telefono: '+39 333 0000002', email: DEMO_EMAIL });
+    const cliSav10 = state.cliente;
+    let nPda10 = 0, nChk10 = 0, nKo10 = 0;
+    for(const g of gestori10){
+      const voci = (perG10[g] || []).slice();
+      if(!voci.length){ suiteItem(g10, g + ': nessuna CTE valida oggi (non testabile)', true, 'warning: registro scaduto per questo operatore'); continue; }
+      voci.sort((a, b) => ((a.cluster === 'consumer') ? 0 : 1) - ((b.cluster === 'consumer') ? 0 : 1));
+      const r = voci[0];
+      state.cliente = (r.cluster === 'business') ? 'azienda' : 'privato';
+      suiteScegli(g, r);
+      try{
+        const res = await compilaPda();
+        const u = __ddmU8(res.b64 || '');
+        const isPdf = u.length > 4 && u[0] === 0x25 && u[1] === 0x50 && u[2] === 0x44 && u[3] === 0x46;
+        const isXlsx = u.length > 2 && u[0] === 0x50 && u[1] === 0x4B;
+        const chk = !!(res.config && res.config.checklist);
+        const devePda = /^(eni|est energy|estenergy)$/i.test(g);
+        const ok = (isPdf || isXlsx) && (chk ? isXlsx : isPdf) && (!devePda || !chk);
+        if(chk) nChk10++; else nPda10++;
+        if(!ok) nKo10++;
+        suiteItem(g10, g + ' · ' + (chk ? 'check-list' : 'modulo PDA') + ' · ' + (res.nomeFile || '?'), ok,
+          'CTE ' + String(r.cte).replace(/-CTE-.*$/, '') + ' · ' + Math.round(u.length / 1024) + ' KB' + (ok ? '' : ' · file non valido o canale sbagliato'));
+      }catch(e){
+        const msg10 = String(e && e.message || e).slice(0, 150);
+        if(/disattivata|non piu' valida|non trovata/i.test(msg10)){
+          suiteItem(g10, g + ': offerta spenta o non piu\' valida, salto il modulo', true, '⚠ ' + msg10);
+        } else {
+          nKo10++;
+          suiteItem(g10, g + ': errore nella preparazione del modulo', false, msg10);
+        }
+      }
+    }
+    state.cliente = cliSav10;
+    suiteItem(g10, 'Riepilogo: ' + nPda10 + ' PDA + ' + nChk10 + ' check-list (' + nKo10 + ' errori)', nKo10 === 0 && nPda10 > 0 && nChk10 > 0);
+    const chkG10 = Object.keys(perG10).find(g => !/^(eni|est energy|estenergy)$/i.test(g));
+    if(chkG10){
+      state.cliente = 'azienda'; suiteScegli(chkG10, perG10[chkG10][0]);
+      const rBiz = await compilaPda();
+      suiteItem(g10, 'Azienda ' + chkG10 + ': check-list BUSINESS', /BUSINESS/i.test(rBiz.nomeFile || ''), rBiz.nomeFile || '');
+      state.cliente = cliSav10;
+    }
+  }catch(e){ suiteItem(g10, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g10);
+
+  /* ---------- 11 · Email canale CHECK LIST (ufficio + cliente) ---------- */
+  const g11 = suiteGruppo('11 · Email canale CHECK LIST (ufficio + cliente)');
+  try{
+    const righe11 = suiteRigheOperatori();
+    const perG11 = {};
+    for(const x of righe11){ (perG11[x.g] = perG11[x.g] || []).push(x.r); }
+    const gChk = Object.keys(perG11).find(g => !/^(eni|est energy|estenergy)$/i.test(g) && perG11[g].some(r => (r.cluster || 'consumer') !== 'business'));
+    if(!gChk){ suiteItem(g11, 'Nessun operatore con check-list valida oggi', false); }
+    else {
+      const rChk = perG11[gChk].find(r => (r.cluster || 'consumer') !== 'business');
+      state.cliente = 'privato'; suiteScegli(gChk, rChk);
+      const o11 = state.ordine;
+      o11.dual = false; o11.intestatario2 = null;
+      o11.consenso = { accetto: true, marketing: '1', attivazione: '' };
+      const capt11 = [];
+      const f11 = window.fetch;
+      const clk11 = HTMLAnchorElement.prototype.click;
+      /* la CTE si scarica dall'archivio Google (GET leggi_cte): nel dry-run la si simula
+         con un PDF vero, cosi' si controlla che parta davvero in allegato all'ufficio */
+      const pl11 = await pdfLibBrowser();
+      const doc11 = await pl11.PDFDocument.create();
+      doc11.addPage([300, 200]);
+      const cteProva11 = await doc11.saveAsBase64();
+      window.fetch = function(url, opz){
+        if(String(url).indexOf('script.google.com') >= 0){
+          try{ capt11.push(JSON.parse(opz && opz.body || '{}')); }catch{ capt11.push({}); }
+          if(/leggi_cte/.test(String(url))) return Promise.resolve(new Response(JSON.stringify({ ok: true, b64: cteProva11 }), { status: 200 }));
+          return Promise.resolve(new Response('{"ok":true}', { status: 200 }));
+        }
+        return f11.apply(this, arguments);
+      };
+      HTMLAnchorElement.prototype.click = function(){};
+      try{ await ordGenera(); } finally { window.fetch = f11; HTMLAnchorElement.prototype.click = clk11; }
+      render('suite');
+      const c11u = capt11.find(c => c && c.tipo === 'richiesta_attivazione') || {};   /* per tipo, non per indice (v. gruppo 6) */
+      const c11c = capt11.find(c => c && c.tipo === 'riepilogo') || {};
+      const listaU11 = (c11u.bollette || []).map(x => x.nome || '');
+      const nomiU11 = listaU11.join(' | ');
+      suiteItem(g11, 'Ufficio: «' + String(c11u.oggetto || '').slice(0, 60) + '»', c11u.tipo === 'richiesta_attivazione');
+      /* nota 146aa: con 6 bollette caricate i file generati devono stare PRIMA (max 8):
+         il vecchio ordine tagliava la CTE */
+      const nomiBollette11 = ['luce', 'gas'].reduce((a, m) => a.concat((state.files[m] || []).map(f => f.name)), []);
+      const baseCte11 = String(rChk.cte).replace(/\.pdf$/i, '');
+      const iCte11 = listaU11.findIndex(n => /^CTE-/.test(n) && n.indexOf(baseCte11) >= 0);
+      const iPrimaB11 = listaU11.findIndex(n => nomiBollette11.indexOf(n) >= 0);
+      suiteItem(g11, 'Ufficio: check-list + privacy + CTE allegate, prima delle bollette (' + listaU11.length + '/8 allegati)',
+        listaU11.some(n => /CHECKLIST/i.test(n)) && listaU11.some(n => /PRIVACY/i.test(n)) && iCte11 >= 0 && listaU11.length <= 8 && (iPrimaB11 < 0 || iCte11 < iPrimaB11), nomiU11.slice(0, 170));
+      const nomiC11 = ((c11c.allegatiExtra || []).concat(c11c.bollette || []).map(x => x.nome || '')).join(' | ');
+      suiteItem(g11, 'Cliente: check-list allegata a ' + (c11c.dest || '?'), c11c.tipo === 'riepilogo' && /CHECKLIST/i.test(nomiC11), nomiC11.slice(0, 120));
+      suiteItem(g11, 'Cliente: corpo spiega di firmare la check-list', /checklist/i.test(String(c11c.corpo || '')));
+    }
+  }catch(e){ suiteItem(g11, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g11);
+
+  /* ---------- 12 · Passaparola (link, token, payload) ---------- */
+  const g12 = suiteGruppo('12 · Passaparola (link, token, payload)');
+  try{
+    suiteItem(g12, 'rifValido: 12345 no, 393331234567 si', !rifValido('12345') && rifValido('393331234567'));
+    suiteItem(g12, 'rifChiave: cellulare 10 cifre → prefisso 39', rifChiave('3331234567') === '393331234567', rifChiave('3331234567'));
+    try{ localStorage.removeItem('ddm_pp_link'); }catch{}
+    render('invita');
+    if($('#ppNome')) $('#ppNome').value = 'Test Suite';
+    if($('#ppCell')) $('#ppCell').value = '3331234567';
+    if($('#ppEmail')) $('#ppEmail').value = DEMO_EMAIL;
+    if($('#ppConsenso')) $('#ppConsenso').checked = true;
+    const capt12 = [];
+    const f12 = window.fetch;
+    window.fetch = function(url, opz){
+      if(String(url).indexOf('script.google.com') >= 0 || String(url).indexOf('/rif-nuovo') >= 0){
+        try{ capt12.push(JSON.parse(opz && opz.body || '{}')); }catch{ capt12.push({}); }
+        return Promise.resolve(new Response('{"ok":true,"v":"abc123def456"}', { status: 200 }));
+      }
+      return f12.apply(this, arguments);
+    };
+    try{ await rifCreaLink(); } finally { window.fetch = f12; }
+    const p12 = capt12[0] || {};
+    suiteItem(g12, 'Richiesta link: mode rif_nuovo + nome + cellulare', p12.mode === 'rif_nuovo' && !!p12.nome && String(p12.cell || '').replace(/\s/g, '').indexOf('3331234567') >= 0, JSON.stringify(p12).slice(0, 120));
+    const link12 = linkRif('3331234567');
+    suiteItem(g12, 'Link con token verificato (&v=)', /[?&]rif=393331234567/.test(link12) && /[&?]v=abc123def456/.test(link12), link12);
+    try{ localStorage.setItem('ddm_rif', JSON.stringify({ c: '393331234567', ts: Date.now() })); }catch{}
+    const capt12b = [];
+    const f12b = window.fetch;
+    window.fetch = function(url, opz){
+      if(String(url).indexOf('script.google.com') >= 0){
+        try{ capt12b.push(JSON.parse(opz && opz.body || '{}')); }catch{ capt12b.push({}); }
+        return Promise.resolve(new Response('{"ok":true}', { status: 200 }));
+      }
+      return f12b.apply(this, arguments);
+    };
+    try{ await inviaViaGoogle('Test passaparola', 'corpo di test', '', { tipo: 'test' }); } finally { window.fetch = f12b; }
+    const p12b = capt12b[0] || {};
+    suiteItem(g12, 'Le email portano il codice passaparola (rif)', p12b.rif === '393331234567', String(p12b.rif || 'assente'));
+    /* 146ab: il link referral deve essere SALVATO in localStorage e riletto */
+    let ppLink12 = null; try{ ppLink12 = JSON.parse(localStorage.getItem('ddm_pp_link') || 'null'); }catch{}
+    suiteItem(g12, 'Link salvato in ddm_pp_link (cell + token)', !!(ppLink12 && ppLink12.cell === '393331234567' && ppLink12.v === 'abc123def456'), ppLink12 ? ('cell ' + ppLink12.cell + ' · v ' + String(ppLink12.v).slice(0,8)) : 'non salvato');
+    const rifSaved12 = rifAttuale();
+    suiteItem(g12, 'Codice referral salvato e riletto (ddm_rif, 12 mesi)', rifSaved12 === '393331234567', 'rifAttuale ' + (rifSaved12 || 'vuoto'));
+    try{ localStorage.setItem('ddm_rifv', JSON.stringify({ v: 'abc123def456', ts: Date.now() })); }catch{}
+    suiteItem(g12, 'Token verificato salvato e riletto (ddm_rifv)', rifvAttuale() === 'abc123def456', 'rifvAttuale ' + (rifvAttuale() || 'vuoto'));
+    try{ localStorage.removeItem('ddm_pp_link'); localStorage.removeItem('ddm_rif'); localStorage.removeItem('ddm_rifv'); }catch{}
+    render('suite');
+  }catch(e){ suiteItem(g12, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g12);
+
+  /* ---------- 13 · Prezzo manuale (privati e aziende) ---------- */
+  const g13 = suiteGruppo('13 · Prezzo manuale letto in bolletta (privati e aziende)');
+  try{
+    const cliSav13 = state.cliente, utSav13 = state.utenza, anSav13 = state.analisi;
+    state.cliente = 'privato'; state.utenza = 'entrambi';
+    const aMerc = stimeLocali({ luce: 25000, gas: 8000 });
+    suiteItem(g13, 'Senza prezzo: stima col mercato e riquadro attivo', !!(aMerc.luce && aMerc.luce.prezzo_stimato_mercato && aMerc.gas && aMerc.gas.prezzo_stimato_mercato), (aMerc.luce && aMerc.luce.prezzo_attuale_kwh) + ' €/kWh · ' + (aMerc.gas && aMerc.gas.prezzo_attuale_smc) + ' €/Smc');
+    const aScritto = stimeLocali({ luce: 25000, gas: 8000, prezzoLuce: 0.139, prezzoGas: 0.85 });
+    suiteItem(g13, 'Prezzo scritto dal cliente: usato e non più \"stimato\"', aScritto.luce.prezzo_attuale_kwh === 0.139 && aScritto.gas.prezzo_attuale_smc === 0.85 && !aScritto.luce.prezzo_stimato_mercato && !aScritto.gas.prezzo_stimato_mercato);
+    state.analisi = aMerc;
+    go('offerte-view');
+    const h13 = document.body.innerHTML;
+    suiteItem(g13, 'Privato: riquadro con campi luce e gas + Ricalcola', suiteEval(h13, 'pnlBox') && suiteEval(h13, 'pnl-luce') && suiteEval(h13, 'pnl-gas') && suiteBottone('#pnlBox', 'Ricalcola'));
+    if($('#pnl-luce')) $('#pnl-luce').value = '0,139';
+    if($('#pnl-gas')) $('#pnl-gas').value = '0,85';
+    ricalcolaPrezzoManuale();
+    suiteItem(g13, 'Ricalcola: prezzo luce 0,139 e gas 0,85 nella stima', state.analisi.luce.prezzo_attuale_kwh === 0.139 && state.analisi.gas.prezzo_attuale_smc === 0.85 && !state.analisi.luce.prezzo_stimato_mercato);
+    suiteItem(g13, 'Ricalcola: riquadro sparito dopo il prezzo scritto', !suiteEval(document.body.innerHTML, 'pnlBox'));
+    state.cliente = 'azienda'; state.utenza = 'entrambi';
+    state.consumiAzienda = { luce: '25000', gas: '8000', potenza: '30', prezzoLuce: '0,139', prezzoGas: '0,85' };
+    render('consumi-azienda');
+    const h13b = document.body.innerHTML;
+    suiteItem(g13, 'Azienda: campi prezzo luce/gas nel form consumi', suiteEval(h13b, 'cPL') && suiteEval(h13b, 'cPG'));
+    await stimaConsumiAzienda();
+    render('suite');
+    suiteItem(g13, 'Azienda: prezzo scritto usato nella stima', !!(state.analisi && state.analisi.luce && state.analisi.luce.prezzo_attuale_kwh === 0.139 && !state.analisi.luce.prezzo_stimato_mercato), (state.analisi && state.analisi.luce && state.analisi.luce.prezzo_attuale_kwh) + ' €/kWh');
+    state.cliente = cliSav13; state.utenza = utSav13; state.analisi = anSav13;
+    state.consumiAzienda = { luce: '', gas: '', potenza: '', prezzoLuce: '', prezzoGas: '' };
+  }catch(e){ suiteItem(g13, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g13);
+
+  /* ---------- 14 · AI bolletta v6.1 ---------- */
+  const g14 = suiteGruppo('14 · AI bolletta v6.1 (campi mancanti + cache)');
+  try{
+    const aiOk = !!(window.__AI_BOLLETTA_V61__ && typeof window.aiCompletaBolletta === 'function');
+    const v6114 = /6\.1/i.test(String(document.title || ''));
+    suiteItem(g14, 'Modulo AI presente nel client', aiOk || !v6114, aiOk ? '' : (v6114 ? 'manca in un build 6.1' : 'atteso: questa versione non ha il modulo AI'));
+    if(aiOk){
+      try{ localStorage.removeItem('ddm-ai-bolletta-v1'); }catch{}
+      let chiamate14 = 0;
+      const f14 = window.fetch;
+      window.fetch = function(url, opz){
+        if(String(url).indexOf('script.google.com') >= 0){
+          chiamate14++;
+          return Promise.resolve(new Response(JSON.stringify({ ok: true, testo: JSON.stringify({ prezzo_luce: 0.145, prezzo_gas: 0.86, potenza_kW: 4.5, consumo_luce_kwh_anno: 2600, consumo_gas_smc_anno: 1200, quota_luce_eur_mese: 7.5, quota_gas_eur_mese: 6, tipo_prezzo: 'fisso' }) }), { status: 200 }));
+        }
+        return f14.apply(this, arguments);
+      };
+      const d14 = { attuale_kwh: 0, attuale_smc: 0, potenza: 0, kwh_anno: 0, smc_anno: 0 };
+      try{ await window.aiCompletaBolletta('bolletta di test suite 146z', d14); } finally { window.fetch = f14; }
+      suiteItem(g14, 'AI compila prezzo luce/gas, potenza e consumi mancanti', d14.attuale_kwh === 0.145 && d14.attuale_smc === 0.86 && d14.potenza === 4.5 && d14.kwh_anno === 2600 && d14.smc_anno === 1200 && d14.fisso_luce === 7.5 && d14.tipo_prezzo === 'fisso', JSON.stringify(d14).slice(0, 160));
+      suiteItem(g14, 'Risposta AI marcata (ai_usata)', !!d14.ai_usata);
+      const prima14 = chiamate14;
+      const d14b = { attuale_kwh: 0, attuale_smc: 0, potenza: 0, kwh_anno: 0, smc_anno: 0 };
+      try{ await window.aiCompletaBolletta('bolletta di test suite 146z', d14b); } catch(e){}
+      suiteItem(g14, 'Cache: la seconda lettura non richiama l\'AI', chiamate14 === prima14, 'chiamate ' + prima14 + ' → ' + chiamate14);
+      try{ localStorage.removeItem('ddm-ai-bolletta-v1'); }catch{}
+    }
+  }catch(e){ suiteItem(g14, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g14);
+
+  /* ---------- 15 · Contratti validati (registro CTE → offerte) ---------- */
+  const g15 = suiteGruppo('15 · Contratti validati (registro CTE → offerte pubblicate)');
+  try{
+    const righe15 = suiteRigheOperatori();
+    suiteItem(g15, 'Righe valide oggi nel registro: ' + righe15.length, righe15.length > 50, 'di ' + new Set(righe15.map(x => x.g)).size + ' operatori');
+    /* le offerte si guardano su tutti i cluster: il filtro degli interruttori vale per entrambi */
+    const tutte15 = (typeof offerteTrasparenti === 'function' ? offerteTrasparenti() : offerteCompatibili().list);
+    const nome15 = o => String(o.nomeCte || o.nomeL || o.gestore || '?').slice(0, 60);
+    suiteItem(g15, 'Offerte pubblicate dal registro: ' + tutte15.length, tutte15.length > 0);
+    const scadute15 = tutte15.filter(o => o.validaFino && String(o.validaFino) < suiteOggi());
+    suiteItem(g15, 'Nessuna offerta scaduta tra quelle pubblicate', scadute15.length === 0, scadute15.map(nome15).slice(0, 4).join(' · '));
+    const senzaNulla15 = tutte15.filter(o => !o.luce && String(o.luceVariabile) !== 'true' && !o.gas && String(o.gasVariabile) !== 'true');
+    suiteItem(g15, 'Ogni offerta pubblicata ha una materia (luce o gas)', senzaNulla15.length === 0, senzaNulla15.length + ' senza ne\' luce ne\' gas');
+    /* prezzo utilizzabile per ogni materia: fisso (luce/gas) oppure variabile con spread.
+       Solo AVVISO: le offerte a sola percentuale di sconto non hanno un prezzo in € */
+    const num15 = v => parseFloat(String(v || '').replace(',', '.')) || 0;
+    const usaL15 = o => !!o.luce || (String(o.luceVariabile) === 'true' && num15(o.luceSpread) > 0);
+    const usaG15 = o => !!o.gas || (String(o.gasVariabile) === 'true' && num15(o.gasSpread) > 0);
+    const senzaPrezzo15 = tutte15.filter(o => !usaL15(o) && !usaG15(o));
+    suiteItem(g15, 'Prezzo leggibile (fisso o spread del variabile) su ogni offerta', true,
+      senzaPrezzo15.length ? '⚠ ' + senzaPrezzo15.length + ' senza prezzo in € (sconto o dati da censire): ' + senzaPrezzo15.map(nome15).slice(0, 4).join(' · ') : 'tutte con prezzo');
+    /* gestori SPENTI (interruttore "tutto il gestore") non devono comparire tra le offerte */
+    const dis15 = (typeof DISABILITATE_V43 !== 'undefined' && DISABILITATE_V43) || {};
+    const spentiG15 = Object.keys(dis15).filter(k => /\|\*$/.test(k) && dis15[k]).map(k => k.slice(0, -2));
+    const pubG15 = [...new Set(tutte15.map(o => o.gestore || '').map(g => disKnV43(g)))];
+    const ancora15 = pubG15.filter(k => spentiG15.indexOf(k) >= 0);
+    suiteItem(g15, 'Gestori spenti (' + spentiG15.length + '): nessuno tra le offerte pubblicate', ancora15.length === 0,
+      (spentiG15.join(', ') || 'nessuno') + (ancora15.length ? ' · ANCORA PUBBLICATI: ' + ancora15.join(', ') : ''));
+    /* gli interruttori arrivati dal frigo devono essere in forma canonica, altrimenti
+       disEntryV43 non li trova (v. nota 146aa in rinfrescaFrigo) */
+    const grezze15 = Object.keys(dis15).filter(k => k.indexOf('|') > 0 && disKnV43(k.split('|')[0]) !== k.split('|')[0]);
+    suiteItem(g15, 'Interruttori del frigo in forma canonica (disEntryV43 li trova)', !window.__REGISTRO_FRIGO || grezze15.length === 0, grezze15.length ? grezze15.slice(0, 3).join(' · ') : (window.__REGISTRO_FRIGO ? 'frigo caricato, tutte canoniche' : 'frigo non caricato: valgono quelle del build'));
+    /* 146ab: UtilityBox = oracolo. Le offerte pubblicate devono venire SOLO da operatori
+       con CTE valide in UtilityBox; nessun operatore fantasma (cartelle CTE vuote eliminate) */
+    const ORACOLO15 = ['eni','plenitude','est energy','enel','sorgenia','magis','sinergy','a2a','engie','estra','heracomm','iren'];
+    const inOracolo15 = g => { const t = String(g||'').toLowerCase(); return ORACOLO15.some(o => t.indexOf(o) >= 0); };
+    const fuori15 = [...new Set(tutte15.map(o => o.gestore || '').filter(g => g && !inOracolo15(g)))];
+    suiteItem(g15, 'Offerte solo da operatori dell\'oracolo UtilityBox', fuori15.length === 0, fuori15.length ? ('FUORI ORACOLO: ' + fuori15.slice(0,6).join(', ')) : 'tutte da UtilityBox');
+    /* ogni offerta pubblicata deve avere la CTE nel frigo: si verifica per GESTORE + MATERIA
+       (il registro indicizza luce/gas/altre, non il nome vetrina della CTE) */
+    const gf15 = (typeof TARIFFE_REGISTRO!=='undefined' && TARIFFE_REGISTRO && TARIFFE_REGISTRO.gestori) ? TARIFFE_REGISTRO.gestori : {};
+    const haMateria15 = (g, o) => {
+      const voci = gf15[disKnV43(g)] || gf15[g] || null;
+      if(!voci) return false;
+      const usaL = !!o.luce || String(o.luceVariabile) === 'true';
+      const usaG = !!o.gas || String(o.gasVariabile) === 'true';
+      if(usaL && !voci.luce) return false;
+      if(usaG && !voci.gas) return false;
+      return true;
+    };
+    const orfane15 = tutte15.filter(o => !haMateria15(o.gestore || '', o));
+    suiteItem(g15, 'Ogni offerta ha la CTE nel frigo (gestore + materia, provenienza UtilityBox)', orfane15.length === 0, orfane15.length ? ('⚠ ' + orfane15.length + ' orfane: ' + orfane15.slice(0,3).map(nome15).join(' · ')) : 'tutte censite');
+  }catch(e){ suiteItem(g15, 'Errore: ' + String(e && e.message || e).slice(0, 140), false); }
+  suiteFine(g15);
 }
 
 /* ================= CHECK LIST .xlsx per i gestori SENZA modulo cartaceo =================
