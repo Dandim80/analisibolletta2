@@ -762,6 +762,10 @@ function vHome(){
       <span><strong>DDM Soluzioni</strong> — leggi le recensioni dei nostri clienti su Google</span>
       <span class="arr">→</span>
     </a>
+    <div style="margin-top:18px">
+      <button class="btn btn-primary" style="width:100%;padding:16px;font-size:1.05rem" onclick="go('invita')">🎁 Invita un amico — 20 € di bonus</button>
+      <div class="hint" style="margin-top:6px">Già cliente? Condividi DDM Soluzioni con chi vuoi: per ogni amico che diventa cliente ricevi 20 € di bonus Amazon (fino a 500 €). Crea il tuo link personale qui, senza rifare l'analisi.</div>
+    </div>
       
     </div>
     
@@ -6396,6 +6400,13 @@ function avviaOrdine(gestore, nomeCte){
   /* nota 42: copia dei dati della card scelta (per ritrovarla anche se la CTE
      esce dal frigo) — va fatta PRIMA dei ritorni anticipati (aziende/Altaviva) */
   salvaCopiaScelta(gestore, nomeCte);
+  /* 146ac: offerta MIX (luce e gas di gestori diversi) → salvo le due CTE per materia,
+     così compilaPda(solo) e ordGenera producono il prodotto giusto per ciascuna. */
+  try{
+    const odMix = state.offertaSceltaDati || {};
+    const cL = String(odMix.cteLuce || ''), cG = String(odMix.cteGas || '');
+    state.offertaMix = (cL && cG && cL !== cG) ? { luce: cL, gas: cG } : null;
+  }catch(e){ state.offertaMix = null; }
   /* AZIENDE (v5.6): compilazione autonoma come i privati, con i campi ditta e il
      canale CHECK LIST business / PDA Est Energy Business. La conferma passa comunque
      dalla chiamata: l'ufficio ricontatta l'azienda dopo aver ricevuto la check list. */
@@ -7256,8 +7267,8 @@ function vOrdineAzienda(){
     <div class="field-row">
       <div class="field"><label class="fl" for="zRef">Referente in azienda (chi seguiamo)</label>
         <input id="zRef" value="${ordEsc(z.referente)}" placeholder="Nome e cognome" oninput="state.ordine.azienda.referente=this.value"></div>
-      <div class="field"><label class="fl" for="zTel">Telefono</label>
-        <input id="zTel" type="tel" value="${ordEsc(z.telefono)}" placeholder="Es. 0444 123456" oninput="state.ordine.azienda.telefono=this.value"></div>
+      <div class="field"><label class="fl" for="zTel">Cellulare di riferimento</label>
+        <input id="zTel" type="tel" value="${ordEsc(z.telefono)}" placeholder="Es. 333 1234567" oninput="state.ordine.azienda.telefono=this.value"></div>
     </div>
     <div class="field"><label class="fl" for="zMail">Email a cui mandiamo check list e contratto</label>
       <input id="zMail" type="email" value="${ordEsc(z.email)}" placeholder="nome@azienda.it" oninput="state.ordine.azienda.email=this.value"></div>
@@ -7842,10 +7853,10 @@ async function ordGenera(){
   const c = state.ordine.consenso;
   if(!c.accetto){ ordErrore('oErrR','Serve l\'accettazione delle condizioni per generare la pratica.'); return; }
   /* nota 136: l'email del cliente è OBBLIGATORIA (la pratica da firmare arriva via email) */
-  const emailCli = String((state.ordine.intestatario || {}).email || state.dati.email || '').trim();
+  const emailCli = String((state.ordine.intestatario || {}).email || (state.ordine.azienda || {}).email || state.dati.email || '').trim();
   if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailCli)){
     /* nota 136: porto l'utente al passo con l'email e lì mostro l'errore */
-    try{ go('ordine2'); }catch(e){}
+    try{ if(state.cliente === 'azienda'){ state.ordine.azStep = 4; go('ordine'); } else { go('ordine2'); } }catch(e){}
     setTimeout(function(){
       try{ ordErrore('oErr2','Manca l\'email del cliente: la pratica da firmare arriva via email. Inseriscila qui.'); }catch(e){}
       try{
@@ -7906,11 +7917,15 @@ async function ordGenera(){
     if(state.ordine.dual && state.ordine.intestatario2){
       const l = await compilaPda({ intest: state.ordine.intestatario, solo: 'luce' });
       const g = await compilaPda({ intest: state.ordine.intestatario2, solo: 'gas' });
-      if((l.config && l.config.checklist) || (g.config && g.config.checklist)){
-        /* due check-list (una per materia, ognuna a nome del suo intestatario) */
+      const lChk = !!(l.config && l.config.checklist), gChk = !!(g.config && g.config.checklist);
+      const cl2 = (r, materia, intest) => ({ nome: String(r.nomeFile || 'CHECKLIST-ufficio.xlsx').replace(/\.xlsx$/i, '') + '-' + materia + '-' + String(intest.cognome || 'intestatario').toLowerCase().replace(/\s/g, '-') + '.xlsx', mime: r.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: r.b64 });
+      if(lChk || gChk){
+        /* 146ac: mix possibile (una check-list + un PDA): ognuno va all'ufficio col suo canale */
         ordChecklist = true;
-        const cl2 = (r, materia, intest) => ({ nome: String(r.nomeFile || 'CHECKLIST-ufficio.xlsx').replace(/\.xlsx$/i, '') + '-' + materia + '-' + String(intest.cognome || 'intestatario').toLowerCase().replace(/\s/g, '-') + '.xlsx', mime: r.mime || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: r.b64 });
-        allegUfficio.push(cl2(l, 'luce', state.ordine.intestatario), cl2(g, 'gas', state.ordine.intestatario2));
+        if(lChk) allegUfficio.push(cl2(l, 'luce', state.ordine.intestatario));
+        if(gChk) allegUfficio.push(cl2(g, 'gas', state.ordine.intestatario2));
+        if(!lChk){ pdaB64 = pdaB64 || []; pdaB64.push({ nome: 'PDA-luce-' + cog + '.pdf', mime: 'application/pdf', base64: l.b64 }); pdaNota = l.config.firmaNota || pdaNota; }
+        if(!gChk){ pdaB64 = pdaB64 || []; pdaB64.push({ nome: 'PDA-gas-' + (String(state.ordine.intestatario2.cognome || 'gas').toLowerCase().replace(/\s/g,'-')) + '.pdf', mime: 'application/pdf', base64: g.b64 }); pdaNota = g.config.firmaNota || pdaNota; }
       } else {
         pdaB64 = [
           { nome: 'PDA-luce-' + cog + '.pdf', mime: 'application/pdf', base64: l.b64 },
@@ -7947,13 +7962,16 @@ async function ordGenera(){
   /* la CTE selezionata va all'ufficio insieme alla checklist: la useranno per la
      PDA digitale con le condizioni giuste (canale watcher → archivio → incorporato) */
   try{
-    if(ordChecklist && state.offertaSceltaCte){
-      const u8 = await cteScarica(state.offertaSceltaCte);
-      allegUfficio.push({ nome: 'CTE-' + String(state.offertaSceltaCte).replace(/\.pdf$/i, ''), mime: 'application/pdf', base64: __estB64(new Uint8Array(u8)) });
+    if(ordChecklist && (state.offertaMix || state.offertaSceltaCte)){
+      const cteDaAllegare = state.offertaMix ? [state.offertaMix.luce, state.offertaMix.gas].filter(Boolean) : [state.offertaSceltaCte];
+      for(const cteName of cteDaAllegare){
+        const u8 = await cteScarica(cteName);
+        allegUfficio.push({ nome: 'CTE-' + String(cteName).replace(/\.pdf$/i, ''), mime: 'application/pdf', base64: __estB64(new Uint8Array(u8)) });
+      }
     }
   } catch(e){ console.log('CTE non allegata (' + String(e.message || e).slice(0, 60) + ')'); }
   praticaStep(80, 'CTE allegata: invio la richiesta');
-  const pdaAllegato = (ordChecklist ? allegUfficio : (pdaB64 || []));
+  const pdaAllegato = (ordChecklist ? allegUfficio.concat(pdaB64 || []) : (pdaB64 || []));
   /* doc d'identità caricato nel wizard (09/11): SOLO all'ufficio —
      il cliente non si ritrova la propria foto in allegato */
   let docAlleg = [];
@@ -10016,6 +10034,11 @@ async function compilaPdaEst(opt){
 async function compilaPda(opt){
   const opt2 = opt || {};
   let cte = String(state.offertaSceltaCte || '');
+  /* 146ac: offerta MIX → per la materia richiesta uso la CTE di quella materia
+     (non la globale), così il gas EstEnergy dispatcha a compilaPdaEstBiz. */
+  if(opt2.solo && state.offertaMix && state.offertaMix[opt2.solo]){
+    cte = String(state.offertaMix[opt2.solo] || '');
+  }
   /* nota 43: il gestore della PRATICA è quello dell'offerta scelta, non il gestore
      attuale della bolletta (state.fornitore non viene più sovrascritto) */
   let gest = String(state.fornitoreScelto || state.offertaScelta || state.fornitore || '');
@@ -10785,16 +10808,11 @@ var SYS_BOL='Dal TESTO della bolletta luce/gas italiana estrai i dati mancanti. 
 'pod = codice che inizia per IT; pdr = 14 cifre; kwh_anno e smc_anno numeri annuali. '+
 'valore "" se non presente; conf 0..1. Nessun dato inventato.';
 function setAiBolBt(){
- var anchor=document.getElementById('ofPod');
- if(anchor&&!aiBolBt){
-  aiBolBt=document.createElement('button');aiBolBt.type='button';aiBolBt.className='ai-doc-bt';
-  aiBolBt.style.marginTop='0';aiBolBt.style.marginBottom='8px';aiBolBt.id='aiBtBol';
-  aiBolBt.textContent='\ud83e\udd16 AI rilegge la bolletta';
-  aiBolBt.title='Se un dato non è arrivato dall OCR, AI rilegge il testo della bolletta caricata e lo propone (tu confermi).';
-  aiBolBt.onclick=aiBol;
-  var fg=anchor.closest('.field')||anchor.parentNode;
-  fg.parentNode.insertBefore(aiBolBt,fg);
- }
+ /* 146ac: pulsante "AI rilegge la bolletta" rimosso: dava "testo non in memoria"
+    quando la bolletta era di una sessione precedente. L'AI compila già i campi
+    mancanti in fase di analisi; qui non serve. */
+ var ex=document.getElementById('aiBtBol'); if(ex&&ex.parentNode) ex.parentNode.removeChild(ex);
+ aiBolBt=null;
 }
 function aiStimaOk(j,chi){
  var mat=chi==='kwh_anno'?'luce':'gas';
@@ -12206,7 +12224,7 @@ function azCampi(){
     FR(F('rapp', 'Legale rappresentante', z.rapp, 'Mario Rossi'),
        F('rappCf', 'Suo codice fiscale', z.rappCf, 'RSSMRA80A01H501U')) +
     FR(F('referente', 'Referente', z.referente, 'Nome e cognome'),
-       F('telefono', 'Telefono', z.telefono, 'Es. 0444 123456', 'type=\"tel\"')) +
+       F('telefono', 'Cellulare di riferimento', z.telefono, 'Es. 333 1234567', 'type=\"tel\"')) +
     F('email', 'Email (check list e contratto)', z.email, 'nome@azienda.it', 'type=\"email\"') +
     F('pec', 'PEC (se ce l\'ha)', z.pec, 'nome@pec.dominio.it') +
     '<div class="hint">La PEC non è obbligatoria: se manca, il fornitore usa l\'email o il canale che preferisce.</div>';
